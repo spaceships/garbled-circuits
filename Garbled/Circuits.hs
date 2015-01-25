@@ -7,6 +7,12 @@ import Garbled.Circuits.Circuit
 import Prelude hiding (and, or)
 import Control.Monad
 
+-- circuit language - done
+-- garbled circuit representation
+-- garbling
+-- ot
+-- evaluation
+
 --------------------------------------------------------------------------------
 -- 8 bit adder example
 

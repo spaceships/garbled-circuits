@@ -9,12 +9,6 @@ import qualified Data.Bits
 
 type Map = M.Map
 
--- circuit language
--- garbled circuit representation
--- garbling
--- ot
--- evaluation
-
 newtype Ref     = Ref     Int deriving (Enum, Ord, Eq, Show)
 newtype InputId = InputId Int deriving (Enum, Ord, Eq, Show)
 
