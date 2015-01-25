@@ -32,9 +32,9 @@ data Env = Env { env_deref :: Map Ref Circuit
                } deriving (Show)
 
 data CircuitSt = CircuitSt { st_nextRef     :: Ref
-                     , st_nextInputId :: InputId
-                     , st_env         :: Env
-                     } deriving (Show)
+                           , st_nextInputId :: InputId
+                           , st_env         :: Env
+                           } deriving (Show)
 
 type CircuitBuilder a = State CircuitSt a
 
