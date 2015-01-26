@@ -30,7 +30,7 @@ runGarble :: Garble a
           -> CircuitEnv
           -> StdGen
           -> (a, GarbledCircuit)
-runGarble f env gen = runState (evalRandT (runReaderT f env) gen) (GarbledCircuit M.empty M.empty)
+runGarble f env gen = runState (evalRandT (runReaderT f env) gen) (M.empty, GarbledCircuit M.empty M.empty)
 
 garble :: Program -> Garble [WireLabelPair]
 garble prog = do
@@ -38,7 +38,8 @@ garble prog = do
     outputs <- mapM traverse (prog_outputs prog)
     return outputs
 
-traverse :: Ref -> Garble WireLabelPair
+-- unary gates need to be folded upwards, hence the return value may be a circuit
+traverse :: Ref -> Garble (Either Circuit WireLabelPair)
 traverse ref = do
   precomputed <- get
   case M.lookup ref (gc_gates precomputed) of
@@ -47,36 +48,40 @@ traverse ref = do
       env <- ask
       let circ = violentLookup ref (env_deref env)
       children <- mapM traverse (circRefs circ)
-      result <- construct circ children
+      result <- construct ref circ children
       putLabel ref result
       return result
 
-construct = undefined
+construct :: Circuit 
+          -> [Either Circuit WireLabelPair] 
+          -> Garble (Either Circuit WireLabelPair)
+construct circ children = undefined
 
-construct :: Circuit -> [WireLabelPair] -> Garble WireLabelPair
-construct (Input id) [] = do
-  inputs <- gets gc_inputs
-  case M.lookup id inputs of
-    Just p  -> p
-    Nothing -> error $ "[construct] No input with id " ++ show id
+construct :: Ref 
+          -> Circuit 
+          -> [WireLabelPair] 
+          -> Garble (Either Circuit WireLabelPair)
+construct ref (Input id) [] = Right <$> inputPair ref id
+construct ref (Const b)  [] = return $ Left (Const b)
+construct ref (Not _)   [x] = do
 
-construct (Const x) []    = x
+  where pair = WireLabelPair { wl_true  = wl_false x -- flip the true/false wire labels
+                             , wl_false = wl_true x  -- actually i don't think I can do this
+                             }                       -- maybe need to keep permute bits the same?
+
 construct (Not _)   [x]   = Prelude.not x
 construct (Xor _ _) [x,y] = Data.Bits.xor x y
 construct (And _ _) [x,y] = x && y
 construct (Or _ _)  [x,y] = x || y
 
-inputPair :: Ref -> Garble (InputId, WireLabelPair)
-inputPair ref = do
-  env <- ask
-  case M.lookup ref (env_deref env) of
-    Just (Input id) -> do
-      [x0, x1] <- getRandoms :: Garble [Int]
-      [c0, c1] <- getRandoms :: Garble [Bool]
-      let pair = WireLabelPair { wl_true = (x0, c0), wl_false = (x1, c1) }
-      putLabel ref pair
-      return (id, pair)
-    _ -> error "[inputPair] mismatched ref"
+inputPair :: Ref -> InputId -> Garble WireLabelPair
+inputPair ref id = do
+  [x0, x1] <- getRandoms :: Garble [Int]
+  [c0, c1] <- getRandoms :: Garble [Bool]
+  let pair = WireLabelPair { wl_true = (x0, c0), wl_false = (x1, c1) }
+  putLabel ref pair
+  putInputId id pair
+  return pair
 
 putLabel :: Ref -> WireLabelPair -> Garble ()
 putLabel ref pair = modify (\st -> st { gc_gates = M.insert ref pair (gc_gates st) })
