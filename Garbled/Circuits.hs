@@ -2,7 +2,9 @@
 
 module Garbled.Circuits where
 
-import Garbled.Circuits.Circuit
+import Garbled.Circuits.Circuits
+import Garbled.Circuits.Garbler
+import Garbled.Circuits.Util
 
 import Prelude hiding (and, or)
 import Control.Monad
@@ -22,8 +24,6 @@ add1Bit x y c = do
     out  <- xor c s
     cout <- bindM2 or (and x y) (and c s)
     return (out, cout)
-  where
-    bindM2 m a b = do x <- a; y <- b; m x y
 
 addBits :: [Ref] -> [Ref] -> CircuitBuilder ([Ref], Ref)
 addBits xs ys = do
@@ -35,8 +35,8 @@ addBits xs ys = do
       (out,c') <- add1Bit x y c
       builder xs ys c' (out:outs)
 
-circ_8BitAdder :: CircuitBuilder [Ref]
-circ_8BitAdder = do
+circ_8BitAdder :: Program
+circ_8BitAdder = buildCircuit $ do
     inp1      <- replicateM 8 input
     inp2      <- replicateM 8 input
     (outs, _) <- addBits inp1 inp2
