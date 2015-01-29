@@ -30,16 +30,20 @@ runGarble :: Garble a
           -> CircuitEnv
           -> StdGen
           -> (a, GarbledCircuit)
-runGarble f env gen = runState (evalRandT (runReaderT f env) gen) (M.empty, GarbledCircuit M.empty M.empty)
+runGarble f env gen = runState (evalRandT (runReaderT f env) gen) (GarbledCircuit M.empty M.empty)
 
 garble :: Program -> Garble [WireLabelPair]
 garble prog = do
-    inputs  <- M.fromList <$> mapM inputPair (prog_inputs prog)
+    zipWithM_ inputPair (prog_inputs prog) ids
     outputs <- mapM traverse (prog_outputs prog)
     return outputs
+  where
+    deref = env_deref (prog_env prog)
+    inps = map (flip violentLookup deref) (prog_inputs prog)
+    ids  = map (\(Input id) -> id) inps
 
 -- unary gates need to be folded upwards, hence the return value may be a circuit
-traverse :: Ref -> Garble (Either Circuit WireLabelPair)
+traverse :: Ref -> Garble WireLabelPair
 traverse ref = do
   precomputed <- get
   case M.lookup ref (gc_gates precomputed) of
@@ -52,27 +56,18 @@ traverse ref = do
       putLabel ref result
       return result
 
-construct :: Circuit 
-          -> [Either Circuit WireLabelPair] 
-          -> Garble (Either Circuit WireLabelPair)
-construct circ children = undefined
-
 construct :: Ref 
           -> Circuit 
           -> [WireLabelPair] 
-          -> Garble (Either Circuit WireLabelPair)
-construct ref (Input id) [] = Right <$> inputPair ref id
-construct ref (Const b)  [] = return $ Left (Const b)
-construct ref (Not _)   [x] = do
-
+          -> Garble WireLabelPair
+construct ref (Input id) [] = inputPair ref id
+construct ref (Not _)   [x] = return pair 
   where pair = WireLabelPair { wl_true  = wl_false x -- flip the true/false wire labels
                              , wl_false = wl_true x  -- actually i don't think I can do this
                              }                       -- maybe need to keep permute bits the same?
-
-construct (Not _)   [x]   = Prelude.not x
-construct (Xor _ _) [x,y] = Data.Bits.xor x y
-construct (And _ _) [x,y] = x && y
-construct (Or _ _)  [x,y] = x || y
+{-construct (Xor _ _) [x,y] = Data.Bits.xor x y-}
+{-construct (And _ _) [x,y] = x && y-}
+{-construct (Or _ _)  [x,y] = x || y-}
 
 inputPair :: Ref -> InputId -> Garble WireLabelPair
 inputPair ref id = do
