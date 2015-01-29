@@ -17,7 +17,9 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Garbled.Circuits
-                      ,Garbled.Circuits.Circuits
+                      ,Garbled.Circuits.Plaintext.Language
+                      ,Garbled.Circuits.Plaintext.Types
+                      ,Garbled.Circuits.Plaintext.Rewrite
                       ,Garbled.Circuits.Garbler
                       ,Garbled.Circuits.Util
   -- other-modules:       

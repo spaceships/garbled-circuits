@@ -1,75 +1,38 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
-module Garbled.Circuits.Circuits where
+module Garbled.Circuits.Plaintext.Language where
 
 import Garbled.Circuits.Util
+import Garbled.Circuits.Plaintext.Types
+import Garbled.Circuits.Plaintext.Rewrite
 
 import qualified Data.Map as M
 import           Control.Monad.State
 import           Prelude hiding (or, and)
 import qualified Data.Bits
 
-type Map = M.Map
-
-newtype Ref     = Ref     Int deriving (Enum, Ord, Eq, Show)
-newtype InputId = InputId Int deriving (Enum, Ord, Eq, Show)
-
-data Circuit = Input InputId
-             | Const Bool
-             | Not Ref
-             | Xor Ref Ref
-             | And Ref Ref
-             | Or  Ref Ref
-             deriving (Show, Eq, Ord)
-
-circRefs :: Circuit -> [Ref]
-circRefs (Not x   ) = [x]
-circRefs (Xor x y ) = [x,y]
-circRefs (And x y ) = [x,y]
-circRefs (Or  x y ) = [x,y]
-circRefs _          = []
-
-data CircuitEnv = CircuitEnv { env_deref :: Map Ref Circuit
-                             , env_dedup :: Map Circuit Ref 
-                             } deriving (Show)
-
-data CircuitSt = CircuitSt { st_nextRef     :: Ref
-                           , st_inputs      :: [Ref]
-                           , st_nextInputId :: InputId
-                           , st_env         :: CircuitEnv
-                           } deriving (Show)
-
-type CircuitBuilder a = State CircuitSt a
-
-data Program = Program { prog_inputs  :: [Ref]
-                       , prog_outputs :: [Ref]
-                       , prog_env     :: CircuitEnv
-                       } deriving (Show)
-
-buildCircuit :: CircuitBuilder [Ref] -> Program
+buildCircuit :: CircuitBuilder [CircRef] -> Program
 buildCircuit c = Program { prog_inputs  = st_inputs st
                          , prog_outputs = outs
                          , prog_env     = st_env st 
                          }
   where
     (outs, st) = runState c emptySt
-    emptySt = CircuitSt { st_nextRef     = Ref 0
+    emptySt = CircuitSt { st_nextRef     = CircRef 0
                         , st_nextInputId = InputId 0
                         , st_inputs      = []
                         , st_env         = CircuitEnv M.empty M.empty
                         }
 
-lookupCircuit :: Circuit -> CircuitBuilder (Maybe Ref)
+lookupCircuit :: Circuit -> CircuitBuilder (Maybe CircRef)
 lookupCircuit circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
 
-lookupRef :: Ref -> CircuitBuilder (Maybe Circuit)
+lookupRef :: CircRef -> CircuitBuilder (Maybe Circuit)
 lookupRef ref = do
   derefEnv <- gets (env_deref . st_env)
   return (M.lookup ref derefEnv)
 
-insertRef :: Ref -> Circuit -> CircuitBuilder ()
+insertRef :: CircRef -> Circuit -> CircuitBuilder ()
 insertRef ref circ = do
   derefEnv <- gets (env_deref . st_env)
   dedupEnv <- gets (env_dedup . st_env)
@@ -78,7 +41,7 @@ insertRef ref circ = do
         (M.insert circ ref dedupEnv)
     })
 
-nextRef :: CircuitBuilder Ref
+nextRef :: CircuitBuilder CircRef
 nextRef = do
   ref <- gets st_nextRef
   modify (\st -> st { st_nextRef = succ ref })
@@ -90,7 +53,7 @@ nextInputId = do
   modify (\st -> st { st_nextInputId = succ id })
   return id
 
-intern :: Circuit -> CircuitBuilder Ref
+intern :: Circuit -> CircuitBuilder CircRef
 intern circ = do
   maybeRef <- lookupCircuit circ
   case maybeRef of
@@ -103,15 +66,16 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-type EvalEnv = Map Ref Bool
+type EvalEnv = Map CircRef Bool
 
 eval :: Program -> [Bool] -> [Bool]
-eval prog inps = evalState (mapM traverse (prog_outputs prog)) M.empty
+eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
   where
+    prog   = foldConsts p
     env    = prog_env prog
     inputs = M.fromList (zip (map InputId [0..]) (reverse inps))
     
-    traverse :: Ref -> State EvalEnv Bool
+    traverse :: CircRef -> State EvalEnv Bool
     traverse ref = do
       precomputed <- get
       case M.lookup ref precomputed of
@@ -136,23 +100,23 @@ eval prog inps = evalState (mapM traverse (prog_outputs prog)) M.empty
 --------------------------------------------------------------------------------
 -- smart constructors
 
-input :: CircuitBuilder Ref
+input :: CircuitBuilder CircRef
 input = do id  <- nextInputId
            ref <- intern (Input id)
            modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
            return ref
 
-xor :: Ref -> Ref -> CircuitBuilder Ref
+xor :: CircRef -> CircRef -> CircuitBuilder CircRef
 xor x y = intern (Xor x y)
 
-or :: Ref -> Ref -> CircuitBuilder Ref
+or :: CircRef -> CircRef -> CircuitBuilder CircRef
 or x y = intern (Or x y)
 
-and :: Ref -> Ref -> CircuitBuilder Ref
+and :: CircRef -> CircRef -> CircuitBuilder CircRef
 and x y = intern (And x y)
 
-not :: Ref -> CircuitBuilder Ref
+not :: CircRef -> CircuitBuilder CircRef
 not x = intern (Not x)
 
-constant :: Bool -> CircuitBuilder Ref
+constant :: Bool -> CircuitBuilder CircRef
 constant b = intern (Const b)

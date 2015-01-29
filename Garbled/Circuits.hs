@@ -2,7 +2,8 @@
 
 module Garbled.Circuits where
 
-import Garbled.Circuits.Circuits
+import Garbled.Circuits.Plaintext.Language
+import Garbled.Circuits.Plaintext.Types
 import Garbled.Circuits.Garbler
 import Garbled.Circuits.Util
 
@@ -18,14 +19,14 @@ import Control.Monad
 --------------------------------------------------------------------------------
 -- 8 bit adder example
 
-add1Bit :: Ref -> Ref -> Ref -> CircuitBuilder (Ref, Ref)
+add1Bit :: CircRef -> CircRef -> CircRef -> CircuitBuilder (CircRef, CircRef)
 add1Bit x y c = do
     s    <- xor x y
     out  <- xor c s
     cout <- bindM2 or (and x y) (and c s)
     return (out, cout)
 
-addBits :: [Ref] -> [Ref] -> CircuitBuilder ([Ref], Ref)
+addBits :: [CircRef] -> [CircRef] -> CircuitBuilder ([CircRef], CircRef)
 addBits xs ys = do
     f <- constant False
     builder xs ys f []
