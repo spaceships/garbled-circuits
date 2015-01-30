@@ -1,6 +1,5 @@
 module Garbled.Circuits.Garbler where
 
-import Garbled.Circuits.Plaintext.Language
 import Garbled.Circuits.Plaintext.Rewrite (foldConsts, topoSort)
 import Garbled.Circuits.Plaintext.Types
 import Garbled.Circuits.Util
@@ -16,8 +15,12 @@ import qualified Data.Map as M
 -- TODO: get better random numbers!
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 
+enc :: Int -> Int -> Int -> Int
+enc k1 k2 m = hash (k1, k2, m)
+
 type Secret    = Int
-type WireLabel = Secret
+type Color     = Bool
+type WireLabel = (Secret, Color)
 
 data WireLabelPair = WireLabelPair { wl_true  :: WireLabel
                                    , wl_false :: WireLabel
@@ -31,7 +34,7 @@ data GarbledCircuit = GarbledCircuit { gc_inputs  :: [CircRef]
 data GarbledGate = GarbledInput WireLabelPair
                  | GarbledGate { gate_inLeft  :: CircRef
                                , gate_inRight :: CircRef
-                               , gate_table   :: (WireLabel, WireLabel, WireLabel, WireLabel)
+                               , gate_table   :: (WireLabel, WireLabel, WireLabel, WireLabel) -- 11, 10, 01, 00
                                } deriving (Show)
 
 type Garble = ReaderT CircuitEnv (RandT StdGen (State GarbledCircuit)) -- a handy monad for garbling
@@ -40,7 +43,8 @@ runGarble :: Garble a
           -> CircuitEnv
           -> StdGen
           -> GarbledCircuit
-runGarble f env gen = execState (evalRandT (runReaderT f env) gen) (GarbledCircuit [] [] M.empty)
+runGarble f env gen = execState (evalRandT (runReaderT f env) gen) initialGC
+  where initialGC = GarbledCircuit [] [] M.empty
 
 garble :: Program -> Garble ()
 garble p = do
@@ -56,10 +60,18 @@ garble p = do
     inps   = map (flip violentLookup deref) (prog_inputs prog)
     inpIds = map (\(Input id) -> id) inps
 
-lookupGate :: CircRef -> Garble (Maybe GarbledGate)
-lookupGate ref = M.lookup ref <$> gets gc_gates
+lookupGate :: CircRef -> Garble GarbledGate
+lookupGate ref = do
+  maybeGate <- M.lookup ref <$> gets gc_gates
+  case maybeGate of
+    Nothing -> error "[lookupGate] gate doesn't exist"
+    Just g  -> return g
 
-construct = undefined
+lookupCirc :: CircRef -> Garble Circuit
+lookupCirc = undefined
+
+construct :: CircRef -> Garble ()
+construct ref = undefined
 
 {-construct :: CircRef -> Garble WireLabelPair-}
 {-construct ref = return pair -}
@@ -73,7 +85,8 @@ construct = undefined
 inputPair :: CircRef -> InputId -> Garble WireLabelPair
 inputPair ref id = do
   [x0, x1] <- getRandoms :: Garble [Int]
-  let pair = WireLabelPair { wl_true = x0, wl_false = x1 }
+  c        <- getRandom  :: Garble Color
+  let pair = WireLabelPair { wl_true = (x0, c), wl_false = (x1, not c) }
   putGate ref (GarbledInput pair)
   return pair
 
