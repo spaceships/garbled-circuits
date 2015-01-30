@@ -7,8 +7,9 @@ import           Control.Monad.State
 
 type Map = M.Map
 
-newtype CircRef     = CircRef     Int deriving (Enum, Ord, Eq, Show)
-newtype InputId = InputId Int deriving (Enum, Ord, Eq, Show)
+newtype CircRef  = CircRef  Int deriving (Enum, Ord, Eq, Show)
+newtype InputId  = InputId  Int deriving (Enum, Ord, Eq, Show)
+newtype OutputId = OutputId Int deriving (Enum, Ord, Eq, Show)
 
 data Circuit = Input InputId
              | Const Bool
@@ -26,7 +27,7 @@ circRefs (Or  x y ) = [x,y]
 circRefs _          = []
 
 data CircuitEnv = CircuitEnv { env_deref :: Map CircRef Circuit
-                             , env_dedup :: Map Circuit CircRef 
+                             , env_dedup :: Map Circuit CircRef
                              } deriving (Show)
 
 data CircuitSt = CircuitSt { st_nextRef     :: CircRef

@@ -12,7 +12,7 @@ import qualified Data.Bits
 buildCircuit :: CircuitBuilder [CircRef] -> Program
 buildCircuit c = Program { prog_inputs  = st_inputs st
                          , prog_outputs = outs
-                         , prog_env     = st_env st 
+                         , prog_env     = st_env st
                          }
   where
     (outs, st) = runState c emptySt
@@ -36,7 +36,7 @@ insertRef :: CircRef -> Circuit -> CircuitBuilder ()
 insertRef ref circ = do
   derefEnv <- gets (env_deref . st_env)
   dedupEnv <- gets (env_dedup . st_env)
-  modify (\st -> st { st_env = 
+  modify (\st -> st { st_env =
     CircuitEnv (M.insert ref circ derefEnv)
         (M.insert circ ref dedupEnv)
     })
@@ -74,7 +74,7 @@ eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
     prog   = foldConsts p
     env    = prog_env prog
     inputs = M.fromList (zip (map InputId [0..]) (reverse inps))
-    
+
     traverse :: CircRef -> State EvalEnv Bool
     traverse ref = do
       precomputed <- get

@@ -15,7 +15,7 @@ violentLookup r e = case M.lookup r e of
 word2Bits :: Word8 -> [Bool]
 word2Bits x = reverse $ map (bitAnd x) (take 8 pow2s)
   where
-    bitAnd a b = a .&. b > 0 
+    bitAnd a b = a .&. b > 0
 
 pow2s :: Num a => [a]
 pow2s = [ 2 ^ x | x <- [0..] ]

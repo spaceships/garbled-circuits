@@ -1,10 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Garbled.Circuits.Plaintext.Rewrite 
-  ( 
+module Garbled.Circuits.Plaintext.Rewrite
+  (
     topoSort
   , foldConsts
-  ) 
+  )
 where
 
 import Garbled.Circuits.Plaintext.Types
@@ -34,10 +34,10 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
       case maybeRef of
         Just ref -> visit ref
         Nothing  -> return ()
-      
+
     visit :: CircRef -> DFS ()
     visit ref = do
-      let circ = look ref 
+      let circ = look ref
       mapM_ visit (circRefs circ)
       mark ref
 
@@ -77,7 +77,7 @@ foldConsts prog = execState (mapM_ fold topo) prog
     internp circ = do
       prog <- get
       let env   = prog_env prog
-          dedup = env_dedup env 
+          dedup = env_dedup env
           deref = env_deref env
       case M.lookup circ dedup of
         Just ref -> return ref
@@ -119,8 +119,8 @@ foldConsts prog = execState (mapM_ fold topo) prog
       [_          , Const False] -> Just <$> internp (Const False)
       _ -> return Nothing
     doFold c@(Or x y) = getChildren c >>= \case
-      [Const True , Const True ] -> Just <$> internp (Const True) 
-      [Const False, Const False] -> Just <$> internp (Const False) 
+      [Const True , Const True ] -> Just <$> internp (Const True)
+      [Const False, Const False] -> Just <$> internp (Const False)
       [Const True , _          ] -> Just <$> internp (Const True)
       [Const False, _          ] -> return (Just y)
       [_          , Const True ] -> Just <$> internp (Const True)
