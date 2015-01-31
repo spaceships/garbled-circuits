@@ -43,7 +43,14 @@ data Program c = Program { prog_inputs  :: [CircRef]
                          , prog_env     :: Env c
                          }
 
-type TruthTable = (CircRef, CircRef, CircRef, CircRef)
+newtype TruthTable = TruthTable (CircRef, CircRef, CircRef, CircRef) 
+                   deriving (Ord, Eq)
 
 ttRefs :: TruthTable -> [CircRef]
-ttRefs (a,b,c,d) = [a,b,c,d]
+ttRefs (TruthTable (a,b,c,d)) = [a,b,c,d]
+
+emptyProgram :: Program c
+emptyProgram = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
+
+emptyEnv :: Env c
+emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }

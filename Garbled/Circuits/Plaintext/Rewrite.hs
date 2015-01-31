@@ -18,8 +18,10 @@ import           Data.Functor
 import           Data.Maybe (fromMaybe)
 
 type Set = S.Set
+
 type DFS = WriterT [CircRef] (State (Set CircRef, Set CircRef))
 
+-- yay polymorphic topoSort
 topoSort :: (c -> [CircRef]) -> Program c -> [CircRef]
 topoSort children prog = snd $ evalState (runWriterT loop) initialState
   where
@@ -57,31 +59,17 @@ foldConsts prog = execState (mapM_ fold topo) prog
   where
     topo = topoSort circRefs prog
 
-    look :: CircRef -> State (Program Circuit) Circuit
-    look ref = do
-      env <- gets prog_env
-      return $ violentLookup ref (env_deref env)
-
-    rewrite :: CircRef -> Circuit -> State (Program Circuit) ()
-    rewrite ref circ = do
-      prog <- get
-      let env   = prog_env prog
-          dedup = M.insert circ ref (env_dedup env)
-          deref = M.insert ref circ (env_deref env)
-          env'  = env { env_dedup = dedup, env_deref = deref }
-      put prog { prog_env = env' }
-
     fold :: CircRef -> State (Program Circuit) ()
     fold ref = do
-      circ <- look ref
+      circ <- lookp ref
       when (boolean circ) $ do
-        [left, right] <- mapM look (circRefs circ)
+        [left, right] <- mapM lookp (circRefs circ)
         l <- doFold left
         r <- doFold right
-        rewrite ref (circ `withArgs` (l,r))
+        rewritep ref (circ `withArgs` (l,r))
 
     getChildren :: Circuit -> State (Program Circuit) [Circuit]
-    getChildren circ = mapM look (circRefs circ)
+    getChildren circ = mapM lookp (circRefs circ)
 
     doFold :: Circuit -> State (Program Circuit) (Maybe CircRef)
     doFold c@(Xor x y) = getChildren c >>= \case
@@ -110,6 +98,78 @@ foldConsts prog = execState (mapM_ fold topo) prog
       _ -> return Nothing
     doFold _ = return Nothing
 
+--------------------------------------------------------------------------------
+-- transform from circ to tt
+
+circ2tt :: Program Circuit -> Program TruthTable
+circ2tt prog = execState (mapM transform topo) emptyProgram
+  where
+    topo = topoSort circRefs prog
+
+    transform :: CircRef -> State (Program TruthTable) ()
+    transform ref = do
+      let circ = lookupC ref prog
+      undefined
+
+--------------------------------------------------------------------------------
+-- polymorphic helper functions
+    
+internp :: (Ord c, MonadState (Program c) m) 
+        => c 
+        -> m CircRef
+internp circ = do
+  prog <- get
+  let env   = prog_env prog
+      dedup = env_dedup env
+      deref = env_deref env
+  case M.lookup circ dedup of
+    Just ref -> return ref
+    Nothing  -> do
+      let ref = fst $ M.findMax deref
+          dedup' = M.insert circ ref dedup
+          deref' = M.insert ref circ deref
+          env'   = env { env_dedup = dedup, env_deref = deref }
+      put prog { prog_env = env' }
+      return ref
+
+rewritep :: (Ord c, MonadState (Program c) m)
+         => CircRef 
+         -> c
+         -> m ()
+rewritep ref circ = do
+  prog <- get
+  let env   = prog_env prog
+      dedup = M.insert circ ref (env_dedup env)
+      deref = M.insert ref circ (env_deref env)
+      env'  = env { env_dedup = dedup, env_deref = deref }
+  put prog { prog_env = env' }
+
+lookp :: (Ord c, MonadState (Program c) m)
+     => CircRef 
+     -> m c
+lookp ref = do
+  env <- gets prog_env
+  case M.lookup ref (env_deref env) of
+    Nothing -> error "[lookp] no c"
+    Just c  -> return c
+
+lookupRef :: Ord c => c -> Program c -> CircRef
+lookupRef c prog = case M.lookup c dedup of
+    Nothing  -> error "[lookupC] no ref"
+    Just ref -> ref
+  where 
+    dedup = env_dedup (prog_env prog)
+
+lookupC :: CircRef -> Program c -> c
+lookupC ref prog = case M.lookup ref deref of
+    Nothing -> error "[lookupRef] no c"
+    Just c  -> c
+  where 
+    deref = env_deref (prog_env prog)
+
+--------------------------------------------------------------------------------
+-- circuit helper functions
+
 boolean :: Circuit -> Bool
 boolean (Xor _ _) = True
 boolean (And _ _) = True
@@ -130,26 +190,4 @@ withArgs (Xor x y) (Nothing, Nothing) = Xor x y
 withArgs (And x y) (Nothing, Nothing) = And x y
 withArgs (Or  x y) (Nothing, Nothing) = Or  x y
 withArgs x _ = x
-
-circ2tt :: Program Circuit -> Program TruthTable
-circ2tt p = undefined
-  where
-    prog = foldConsts p
-    topo = topoSort circRefs prog
-    
-internp :: (Ord c, MonadState (Program c) m) => c -> m CircRef
-internp circ = do
-  prog <- get
-  let env   = prog_env prog
-      dedup = env_dedup env
-      deref = env_deref env
-  case M.lookup circ dedup of
-    Just ref -> return ref
-    Nothing  -> do
-      let ref = fst $ M.findMax deref
-          dedup' = M.insert circ ref dedup
-          deref' = M.insert ref circ deref
-          env'   = env { env_dedup = dedup, env_deref = deref }
-      put prog { prog_env = env' }
-      return ref
 
