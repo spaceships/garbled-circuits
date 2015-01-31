@@ -9,7 +9,7 @@ import           Control.Monad.State
 import           Prelude hiding (or, and)
 import qualified Data.Bits
 
-buildCircuit :: CircuitBuilder [CircRef] -> Program
+buildCircuit :: CircuitBuilder [CircRef] -> Program Circuit
 buildCircuit c = Program { prog_inputs  = st_inputs st
                          , prog_outputs = outs
                          , prog_env     = st_env st
@@ -19,7 +19,7 @@ buildCircuit c = Program { prog_inputs  = st_inputs st
     emptySt = CircuitSt { st_nextRef     = CircRef 0
                         , st_nextInputId = InputId 0
                         , st_inputs      = []
-                        , st_env         = CircuitEnv M.empty M.empty
+                        , st_env         = Env M.empty M.empty
                         }
 
 lookupCircuit :: Circuit -> CircuitBuilder (Maybe CircRef)
@@ -37,7 +37,7 @@ insertRef ref circ = do
   derefEnv <- gets (env_deref . st_env)
   dedupEnv <- gets (env_dedup . st_env)
   modify (\st -> st { st_env =
-    CircuitEnv (M.insert ref circ derefEnv)
+    Env (M.insert ref circ derefEnv)
         (M.insert circ ref dedupEnv)
     })
 
@@ -68,7 +68,7 @@ intern circ = do
 
 type EvalEnv = Map CircRef Bool
 
-eval :: Program -> [Bool] -> [Bool]
+eval :: Program Circuit -> [Bool] -> [Bool]
 eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
   where
     prog   = foldConsts p

@@ -37,47 +37,44 @@ data GarbledGate = GarbledInput WireLabelPair
                                , gate_table   :: (WireLabel, WireLabel, WireLabel, WireLabel) -- 11, 10, 01, 00
                                } deriving (Show)
 
-type Garble = ReaderT CircuitEnv (RandT StdGen (State GarbledCircuit)) -- a handy monad for garbling
+type Garble = ReaderT (Env TruthTable) (RandT StdGen (State GarbledCircuit)) -- a handy monad for garbling
 
 runGarble :: Garble a
-          -> CircuitEnv
+          -> Env TruthTable
           -> StdGen
           -> GarbledCircuit
 runGarble f env gen = execState (evalRandT (runReaderT f env) gen) initialGC
   where initialGC = GarbledCircuit [] [] M.empty
 
-garble :: Program -> Garble ()
-garble p = do
-    zipWithM_ inputPair (prog_inputs prog) inpIds
-    mapM_ construct topo
-    modify (\st -> st { gc_outputs = (prog_outputs prog)
-                      , gc_inputs  = (prog_inputs  prog)
-                      })
-  where
-    prog   = foldConsts prog
-    topo   = topoSort prog
-    deref  = env_deref (prog_env prog)
-    inps   = map (flip violentLookup deref) (prog_inputs prog)
-    inpIds = map (\(Input id) -> id) inps
+garble :: Program TruthTable -> Garble ()
+garble prog = undefined
+    {-zipWithM_ inputPair (prog_inputs prog) inpIds-}
+    {-mapM_ construct topo-}
+    {-modify (\st -> st { gc_outputs = (prog_outputs prog)-}
+                      {-, gc_inputs  = (prog_inputs  prog)-}
+                      {-})-}
+  {-where-}
+    {-topo   = topoSort ttRefs prog-}
+    {-deref  = env_deref (prog_env prog)-}
+    {-inps   = map (flip violentLookup deref) (prog_inputs prog)-}
+    {-inpIds = map (\(Input id) -> id) inps-}
 
-lookupGate :: CircRef -> Garble GarbledGate
-lookupGate ref = do
-  maybeGate <- M.lookup ref <$> gets gc_gates
-  case maybeGate of
-    Nothing -> error "[lookupGate] gate doesn't exist"
-    Just g  -> return g
+construct = undefined
+{-construct :: CircRef -> Garble ()-}
+{-construct ref = do-}
+  {-circ     <- lookupCirc ref-}
+  {-children <- mapM lookupGate (circRefs circ)-}
+  {-case circ of-}
+    {-Not _   -> putGate ref (flipLabel (head children)-}
+    {-And _ _ -> garbleAnd ref-}
 
-lookupCirc :: CircRef -> Garble Circuit
-lookupCirc = undefined
-
-construct :: CircRef -> Garble ()
-construct ref = undefined
+flipLabel :: WireLabelPair -> WireLabelPair
+flipLabel p = WireLabelPair { wl_true  = wl_false p -- flip the true/false wire labels
+                            , wl_false = wl_true p  -- actually i don't think I can do this
+                            }                       -- maybe need to keep permute bits the same?
 
 {-construct :: CircRef -> Garble WireLabelPair-}
 {-construct ref = return pair -}
-  {-where pair = WireLabelPair { wl_true  = wl_false x -- flip the true/false wire labels-}
-                             {-, wl_false = wl_true x  -- actually i don't think I can do this-}
-                             {-}                       -- maybe need to keep permute bits the same?-}
 {-[>construct (Xor _ _) [x,y] = Data.Bits.xor x y<]-}
 {-[>construct (And _ _) [x,y] = x && y<]-}
 {-[>construct (Or _ _)  [x,y] = x || y<]-}
@@ -92,3 +89,18 @@ inputPair ref id = do
 
 putGate :: CircRef -> GarbledGate -> Garble ()
 putGate ref gate = modify (\st -> st { gc_gates = M.insert ref gate (gc_gates st) })
+
+{-lookupGate :: CircRef -> Garble GarbledGate-}
+{-lookupGate ref = do-}
+  {-maybeGate <- M.lookup ref <$> gets gc_gates-}
+  {-case maybeGate of-}
+    {-Nothing -> error "[lookupGate] gate doesn't exist"-}
+    {-Just g  -> return g-}
+
+{-lookupCirc :: CircRef -> Garble Circuit-}
+{-lookupCirc ref = do-}
+  {-deref <- asks env_deref-}
+  {-case M.lookup ref deref of-}
+    {-Nothing -> error "[lookupCirc] no ref"-}
+    {-Just c  -> return c-}
+

@@ -36,7 +36,7 @@ addBits xs ys = do
       (out,c') <- add1Bit x y c
       builder xs ys c' (out:outs)
 
-circ_8BitAdder :: Program
+circ_8BitAdder :: Program Circuit
 circ_8BitAdder = buildCircuit $ do
     inp1      <- replicateM 8 input
     inp2      <- replicateM 8 input

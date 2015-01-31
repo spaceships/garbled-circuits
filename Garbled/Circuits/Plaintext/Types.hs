@@ -20,26 +20,30 @@ data Circuit = Input InputId
              deriving (Show, Eq, Ord)
 
 circRefs :: Circuit -> [CircRef]
-circRefs (Not x   ) = [x]
-circRefs (Xor x y ) = [x,y]
-circRefs (And x y ) = [x,y]
-circRefs (Or  x y ) = [x,y]
-circRefs _          = []
+circRefs (Not x  ) = [x]
+circRefs (Xor x y) = [x,y]
+circRefs (And x y) = [x,y]
+circRefs (Or  x y) = [x,y]
+circRefs _         = []
 
-data CircuitEnv = CircuitEnv { env_deref :: Map CircRef Circuit
-                             , env_dedup :: Map Circuit CircRef
-                             } deriving (Show)
+data Env c = Env { env_deref :: Map CircRef c
+                 , env_dedup :: Map c CircRef
+                 }
 
 data CircuitSt = CircuitSt { st_nextRef     :: CircRef
                            , st_inputs      :: [CircRef]
                            , st_nextInputId :: InputId
-                           , st_env         :: CircuitEnv
-                           } deriving (Show)
+                           , st_env         :: Env Circuit
+                           }
 
 type CircuitBuilder a = State CircuitSt a
 
-data Program = Program { prog_inputs  :: [CircRef]
-                       , prog_outputs :: [CircRef]
-                       , prog_env     :: CircuitEnv
-                       } deriving (Show)
+data Program c = Program { prog_inputs  :: [CircRef]
+                         , prog_outputs :: [CircRef]
+                         , prog_env     :: Env c
+                         }
 
+type TruthTable = (CircRef, CircRef, CircRef, CircRef)
+
+ttRefs :: TruthTable -> [CircRef]
+ttRefs (a,b,c,d) = [a,b,c,d]
