@@ -1,38 +1,46 @@
 module Garbled.Circuits.Plaintext.Language where
 
+import Garbled.Circuits.Types
 import Garbled.Circuits.Util
-import Garbled.Circuits.Plaintext.Types
 import Garbled.Circuits.Plaintext.Rewrite
 
-import qualified Data.Map as M
 import           Control.Monad.State
-import           Prelude hiding (or, and)
 import qualified Data.Bits
+import qualified Data.Map as M
+import           Prelude hiding (or, and)
 
-buildCircuit :: CircuitBuilder [CircRef] -> Program Circuit
+data CircSt = CircSt { st_nextRef     :: CircRef
+                        , st_inputs      :: [CircRef]
+                        , st_nextInputId :: InputId
+                        , st_env         :: Env Circ
+                        }
+
+type CircBuilder a = State CircSt a
+
+buildCircuit :: CircBuilder [CircRef] -> Program Circ
 buildCircuit c = Program { prog_inputs  = st_inputs st
                          , prog_outputs = outs
                          , prog_env     = st_env st
                          }
   where
     (outs, st) = runState c emptySt
-    emptySt = CircuitSt { st_nextRef     = CircRef 0
+    emptySt    = CircSt { st_nextRef     = CircRef 0
                         , st_nextInputId = InputId 0
                         , st_inputs      = []
-                        , st_env         = Env M.empty M.empty
+                        , st_env         = emptyEnv
                         }
 
-lookupCircuit :: Circuit -> CircuitBuilder (Maybe CircRef)
+lookupCircuit :: Circ -> CircBuilder (Maybe CircRef)
 lookupCircuit circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
 
-lookupRef :: CircRef -> CircuitBuilder (Maybe Circuit)
+lookupRef :: CircRef -> CircBuilder (Maybe Circ)
 lookupRef ref = do
   derefEnv <- gets (env_deref . st_env)
   return (M.lookup ref derefEnv)
 
-insertRef :: CircRef -> Circuit -> CircuitBuilder ()
+insertRef :: CircRef -> Circ -> CircBuilder ()
 insertRef ref circ = do
   derefEnv <- gets (env_deref . st_env)
   dedupEnv <- gets (env_dedup . st_env)
@@ -41,19 +49,19 @@ insertRef ref circ = do
         (M.insert circ ref dedupEnv)
     })
 
-nextRef :: CircuitBuilder CircRef
+nextRef :: CircBuilder CircRef
 nextRef = do
   ref <- gets st_nextRef
   modify (\st -> st { st_nextRef = succ ref })
   return ref
 
-nextInputId :: CircuitBuilder InputId
+nextInputId :: CircBuilder InputId
 nextInputId = do
   id <- gets st_nextInputId
   modify (\st -> st { st_nextInputId = succ id })
   return id
 
-intern :: Circuit -> CircuitBuilder CircRef
+intern :: Circ -> CircBuilder CircRef
 intern circ = do
   maybeRef <- lookupCircuit circ
   case maybeRef of
@@ -68,12 +76,12 @@ intern circ = do
 
 type EvalEnv = Map CircRef Bool
 
-eval :: Program Circuit -> [Bool] -> [Bool]
-eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
+eval :: Program Circ -> [Bool] -> [Bool]
+eval p inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
   where
     prog   = foldConsts p
     env    = prog_env prog
-    inputs = M.fromList (zip (map InputId [0..]) (reverse inps))
+    inputs = M.fromList (zip (map InputId [0..]) inps)
 
     traverse :: CircRef -> State EvalEnv Bool
     traverse ref = do
@@ -87,7 +95,7 @@ eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
           modify (M.insert ref result)
           return result
 
-    reconstruct :: Circuit -> [Bool] -> Bool
+    reconstruct :: Circ -> [Bool] -> Bool
     reconstruct (Input id) [] = case M.lookup id inputs of
       Just b  -> b
       Nothing -> error $ "[reconstruct] No input with id " ++ show id
@@ -100,23 +108,23 @@ eval p inps = evalState (mapM traverse (prog_outputs prog)) M.empty
 --------------------------------------------------------------------------------
 -- smart constructors
 
-input :: CircuitBuilder CircRef
+input :: CircBuilder CircRef
 input = do id  <- nextInputId
            ref <- intern (Input id)
            modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
            return ref
 
-xor :: CircRef -> CircRef -> CircuitBuilder CircRef
+xor :: CircRef -> CircRef -> CircBuilder CircRef
 xor x y = intern (Xor x y)
 
-or :: CircRef -> CircRef -> CircuitBuilder CircRef
+or :: CircRef -> CircRef -> CircBuilder CircRef
 or x y = intern (Or x y)
 
-and :: CircRef -> CircRef -> CircuitBuilder CircRef
+and :: CircRef -> CircRef -> CircBuilder CircRef
 and x y = intern (And x y)
 
-not :: CircRef -> CircuitBuilder CircRef
+not :: CircRef -> CircBuilder CircRef
 not x = intern (Not x)
 
-constant :: Bool -> CircuitBuilder CircRef
+constant :: Bool -> CircBuilder CircRef
 constant b = intern (Const b)

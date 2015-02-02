@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Garbled.Circuits.Plaintext.Rewrite
   (
@@ -7,15 +7,15 @@ module Garbled.Circuits.Plaintext.Rewrite
   )
 where
 
-import Garbled.Circuits.Plaintext.Types
+import Garbled.Circuits.Types
 import Garbled.Circuits.Util
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import qualified Data.Set as S
-import qualified Data.Map as M
 import           Data.Functor
+import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
+import qualified Data.Set as S
 
 type Set = S.Set
 
@@ -54,24 +54,24 @@ topoSort children prog = snd $ evalState (runWriterT loop) initialState
       put (S.delete ref todo, S.insert ref done)
       tell [ref]
 
-foldConsts :: Program Circuit -> Program Circuit
+foldConsts :: Program Circ -> Program Circ
 foldConsts prog = execState (mapM_ fold topo) prog
   where
     topo = topoSort circRefs prog
 
-    fold :: CircRef -> State (Program Circuit) ()
+    fold :: CircRef -> State (Program Circ) ()
     fold ref = do
       circ <- lookp ref
       when (boolean circ) $ do
         [left, right] <- mapM lookp (circRefs circ)
         l <- doFold left
         r <- doFold right
-        rewritep ref (circ `withArgs` (l,r))
+        writep ref (circ `withArgs` (l,r))
 
-    getChildren :: Circuit -> State (Program Circuit) [Circuit]
+    getChildren :: Circ -> State (Program Circ) [Circ]
     getChildren circ = mapM lookp (circRefs circ)
 
-    doFold :: Circuit -> State (Program Circuit) (Maybe CircRef)
+    doFold :: Circ -> State (Program Circ) (Maybe CircRef)
     doFold c@(Xor x y) = getChildren c >>= \case
       [Const True , Const True ] -> Just <$> internp (Const False)
       [Const False, Const False] -> Just <$> internp (Const False)
@@ -101,8 +101,8 @@ foldConsts prog = execState (mapM_ fold topo) prog
 --------------------------------------------------------------------------------
 -- transform from circ to tt
 
-circ2tt :: Program Circuit -> Program TruthTable
-circ2tt prog = execState (mapM transform topo) emptyProgram
+circ2tt :: Program Circ -> Program TruthTable
+circ2tt prog = execState (mapM transform topo) emptyProg
   where
     topo = topoSort circRefs prog
 
@@ -112,71 +112,15 @@ circ2tt prog = execState (mapM transform topo) emptyProgram
       undefined
 
 --------------------------------------------------------------------------------
--- polymorphic helper functions
-    
-internp :: (Ord c, MonadState (Program c) m) 
-        => c 
-        -> m CircRef
-internp circ = do
-  prog <- get
-  let env   = prog_env prog
-      dedup = env_dedup env
-      deref = env_deref env
-  case M.lookup circ dedup of
-    Just ref -> return ref
-    Nothing  -> do
-      let ref = fst $ M.findMax deref
-          dedup' = M.insert circ ref dedup
-          deref' = M.insert ref circ deref
-          env'   = env { env_dedup = dedup, env_deref = deref }
-      put prog { prog_env = env' }
-      return ref
-
-rewritep :: (Ord c, MonadState (Program c) m)
-         => CircRef 
-         -> c
-         -> m ()
-rewritep ref circ = do
-  prog <- get
-  let env   = prog_env prog
-      dedup = M.insert circ ref (env_dedup env)
-      deref = M.insert ref circ (env_deref env)
-      env'  = env { env_dedup = dedup, env_deref = deref }
-  put prog { prog_env = env' }
-
-lookp :: (Ord c, MonadState (Program c) m)
-     => CircRef 
-     -> m c
-lookp ref = do
-  env <- gets prog_env
-  case M.lookup ref (env_deref env) of
-    Nothing -> error "[lookp] no c"
-    Just c  -> return c
-
-lookupRef :: Ord c => c -> Program c -> CircRef
-lookupRef c prog = case M.lookup c dedup of
-    Nothing  -> error "[lookupC] no ref"
-    Just ref -> ref
-  where 
-    dedup = env_dedup (prog_env prog)
-
-lookupC :: CircRef -> Program c -> c
-lookupC ref prog = case M.lookup ref deref of
-    Nothing -> error "[lookupRef] no c"
-    Just c  -> c
-  where 
-    deref = env_deref (prog_env prog)
-
---------------------------------------------------------------------------------
 -- circuit helper functions
 
-boolean :: Circuit -> Bool
+boolean :: Circ -> Bool
 boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean (Or  _ _) = True
 boolean _ = False
 
-withArgs :: Circuit -> (Maybe CircRef, Maybe CircRef) -> Circuit
+withArgs :: Circ -> (Maybe CircRef, Maybe CircRef) -> Circ
 withArgs (Xor _ _) (Just x , Just y ) = Xor x y
 withArgs (And _ _) (Just x , Just y ) = And x y
 withArgs (Or  _ _) (Just x , Just y ) = Or  x y

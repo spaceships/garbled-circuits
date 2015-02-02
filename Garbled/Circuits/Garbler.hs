@@ -1,16 +1,16 @@
 module Garbled.Circuits.Garbler where
 
-import Garbled.Circuits.Plaintext.Rewrite (foldConsts, topoSort)
-import Garbled.Circuits.Plaintext.Types
+import Garbled.Circuits.Types
 import Garbled.Circuits.Util
+import Garbled.Circuits.Plaintext.Rewrite (foldConsts, topoSort)
 
-import Data.Functor
-import Control.Monad.State
-import Control.Monad.Reader
-import Control.Monad.Random
-import Data.Hashable
-import System.Random
+import           Control.Monad.Random
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           Data.Functor
+import           Data.Hashable
 import qualified Data.Map as M
+import           System.Random
 
 -- TODO: get better random numbers!
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
@@ -18,24 +18,7 @@ import qualified Data.Map as M
 enc :: Int -> Int -> Int -> Int
 enc k1 k2 m = hash (k1, k2, m)
 
-type Secret    = Int
-type Color     = Bool
-type WireLabel = (Secret, Color)
-
-data WireLabelPair = WireLabelPair { wl_true  :: WireLabel
-                                   , wl_false :: WireLabel
-                                   } deriving (Show)
-
-data GarbledCircuit = GarbledCircuit { gc_inputs  :: [CircRef]
-                                     , gc_outputs :: [CircRef]
-                                     , gc_gates   :: Map CircRef GarbledGate
-                                     } deriving (Show)
-
-data GarbledGate = GarbledInput WireLabelPair
-                 | GarbledGate { gate_inLeft  :: CircRef
-                               , gate_inRight :: CircRef
-                               , gate_table   :: (WireLabel, WireLabel, WireLabel, WireLabel) -- 11, 10, 01, 00
-                               } deriving (Show)
+type GarbledCircuit = Program GarbledGate
 
 type Garble = ReaderT (Env TruthTable) (RandT StdGen (State GarbledCircuit)) -- a handy monad for garbling
 
@@ -44,7 +27,7 @@ runGarble :: Garble a
           -> StdGen
           -> GarbledCircuit
 runGarble f env gen = execState (evalRandT (runReaderT f env) gen) initialGC
-  where initialGC = GarbledCircuit [] [] M.empty
+  where initialGC = Program [] [] emptyEnv
 
 garble :: Program TruthTable -> Garble ()
 garble prog = undefined
@@ -84,11 +67,9 @@ inputPair ref id = do
   [x0, x1] <- getRandoms :: Garble [Int]
   c        <- getRandom  :: Garble Color
   let pair = WireLabelPair { wl_true = (x0, c), wl_false = (x1, not c) }
-  putGate ref (GarbledInput pair)
+  writep ref (GarbledInput pair)
   return pair
 
-putGate :: CircRef -> GarbledGate -> Garble ()
-putGate ref gate = modify (\st -> st { gc_gates = M.insert ref gate (gc_gates st) })
 
 {-lookupGate :: CircRef -> Garble GarbledGate-}
 {-lookupGate ref = do-}

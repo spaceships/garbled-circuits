@@ -17,11 +17,11 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Garbled.Circuits
-                      ,Garbled.Circuits.Plaintext.Language
-                      ,Garbled.Circuits.Plaintext.Types
-                      ,Garbled.Circuits.Plaintext.Rewrite
+                      ,Garbled.Circuits.Types
                       ,Garbled.Circuits.Garbler
                       ,Garbled.Circuits.Util
+                      ,Garbled.Circuits.Plaintext.Language
+                      ,Garbled.Circuits.Plaintext.Rewrite
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
