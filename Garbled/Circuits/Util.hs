@@ -23,23 +23,23 @@ word2Bits x = map (bitAnd x) (take 8 pow2s)
     bitAnd a b = a .&. b > 0
 
 -- takes a little-endian list of bits
-bits2Word :: Integral n => [Bool] -> n
+{-bits2Word :: Integral n => [Bool] -> n-}
 bits2Word bs = sum $ zipWith select bs pow2s
   where
     select b x = if b then x else 0
 
-pow2s :: Num a => [a]
+{-pow2s :: Num a => [a]-}
 pow2s = [ 2 ^ x | x <- [0..] ]
 
-circRefs :: Circ -> [CircRef]
+circRefs :: Circ -> [Ref]
 circRefs (Not x  ) = [x]
 circRefs (Xor x y) = [x,y]
 circRefs (And x y) = [x,y]
 circRefs (Or  x y) = [x,y]
 circRefs _         = []
 
-ttRefs :: TruthTable -> [CircRef]
-ttRefs (TruthTable a b c d) = [a,b,c,d]
+ttRefs :: TruthTable -> [Ref]
+ttRefs tt = [tt_inpx tt, tt_inpy tt]
 
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
@@ -52,7 +52,7 @@ emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
     
 internp :: (Ord c, MonadState (Program c) m) 
         => c 
-        -> m CircRef
+        -> m Ref
 internp circ = do
   prog <- get
   let env   = prog_env prog
@@ -69,7 +69,7 @@ internp circ = do
       return ref
 
 writep :: (Ord c, MonadState (Program c) m)
-         => CircRef 
+         => Ref 
          -> c
          -> m ()
 writep ref circ = do
@@ -81,7 +81,7 @@ writep ref circ = do
   put prog { prog_env = env' }
 
 lookp :: (Ord c, MonadState (Program c) m)
-     => CircRef 
+     => Ref 
      -> m c
 lookp ref = do
   env <- gets prog_env
@@ -89,14 +89,14 @@ lookp ref = do
     Nothing -> error "[lookp] no c"
     Just c  -> return c
 
-lookupRef :: Ord c => c -> Program c -> CircRef
+lookupRef :: Ord c => c -> Program c -> Ref
 lookupRef c prog = case M.lookup c dedup of
     Nothing  -> error "[lookupC] no ref"
     Just ref -> ref
   where 
     dedup = env_dedup (prog_env prog)
 
-lookupC :: CircRef -> Program c -> c
+lookupC :: Ref -> Program c -> c
 lookupC ref prog = case M.lookup ref deref of
     Nothing -> error "[lookupRef] no c"
     Just c  -> c

@@ -19,10 +19,10 @@ import qualified Data.Set as S
 
 type Set = S.Set
 
-type DFS = WriterT [CircRef] (State (Set CircRef, Set CircRef))
+type DFS = WriterT [Ref] (State (Set Ref, Set Ref))
 
 -- yay polymorphic topoSort
-topoSort :: (c -> [CircRef]) -> Program c -> [CircRef]
+topoSort :: (c -> [Ref]) -> Program c -> [Ref]
 topoSort children prog = snd $ evalState (runWriterT loop) initialState
   where
     deref        = env_deref (prog_env prog)
@@ -35,20 +35,20 @@ topoSort children prog = snd $ evalState (runWriterT loop) initialState
         Just ref -> visit ref
         Nothing  -> return ()
 
-    visit :: CircRef -> DFS ()
+    visit :: Ref -> DFS ()
     visit ref = do
       let circ = fromMaybe (error "[visit] oops") (M.lookup ref deref)
       mapM_ visit (children circ)
       mark ref
 
-    next :: DFS (Maybe CircRef)
+    next :: DFS (Maybe Ref)
     next = do
       (todo, done) <- get
       if S.size todo > 0
         then return $ Just (S.findMax todo)
         else return Nothing
 
-    mark :: CircRef -> DFS ()
+    mark :: Ref -> DFS ()
     mark ref = do
       (todo, done) <- get
       put (S.delete ref todo, S.insert ref done)
@@ -59,7 +59,7 @@ foldConsts prog = execState (mapM_ fold topo) prog
   where
     topo = topoSort circRefs prog
 
-    fold :: CircRef -> State (Program Circ) ()
+    fold :: Ref -> State (Program Circ) ()
     fold ref = do
       circ <- lookp ref
       when (boolean circ) $ do
@@ -71,7 +71,7 @@ foldConsts prog = execState (mapM_ fold topo) prog
     getChildren :: Circ -> State (Program Circ) [Circ]
     getChildren circ = mapM lookp (circRefs circ)
 
-    doFold :: Circ -> State (Program Circ) (Maybe CircRef)
+    doFold :: Circ -> State (Program Circ) (Maybe Ref)
     doFold c@(Xor x y) = getChildren c >>= \case
       [Const True , Const True ] -> Just <$> internp (Const False)
       [Const False, Const False] -> Just <$> internp (Const False)
@@ -106,10 +106,17 @@ circ2tt prog = execState (mapM transform topo) emptyProg
   where
     topo = topoSort circRefs prog
 
-    transform :: CircRef -> State (Program TruthTable) ()
+    transform :: Ref -> State (Program TruthTable) (Maybe Circ)
     transform ref = do
       let circ = lookupC ref prog
-      undefined
+      if boolean circ then do
+        undefined
+        {-case circ of-}
+          {-Xor x y -> TruthTable { tt_11 = -}
+      else do
+        -- unary gates
+        undefined
+      
 
 --------------------------------------------------------------------------------
 -- circuit helper functions
@@ -120,7 +127,7 @@ boolean (And _ _) = True
 boolean (Or  _ _) = True
 boolean _ = False
 
-withArgs :: Circ -> (Maybe CircRef, Maybe CircRef) -> Circ
+withArgs :: Circ -> (Maybe Ref, Maybe Ref) -> Circ
 withArgs (Xor _ _) (Just x , Just y ) = Xor x y
 withArgs (And _ _) (Just x , Just y ) = And x y
 withArgs (Or  _ _) (Just x , Just y ) = Or  x y

@@ -9,38 +9,38 @@ import qualified Data.Bits
 import qualified Data.Map as M
 import           Prelude hiding (or, and)
 
-data CircSt = CircSt { st_nextRef     :: CircRef
-                        , st_inputs      :: [CircRef]
+data CircSt = CircSt { st_nextRef     :: Ref
+                        , st_inputs      :: [Ref]
                         , st_nextInputId :: InputId
                         , st_env         :: Env Circ
                         }
 
 type CircBuilder a = State CircSt a
 
-buildCircuit :: CircBuilder [CircRef] -> Program Circ
+buildCircuit :: CircBuilder [Ref] -> Program Circ
 buildCircuit c = Program { prog_inputs  = st_inputs st
                          , prog_outputs = outs
                          , prog_env     = st_env st
                          }
   where
     (outs, st) = runState c emptySt
-    emptySt    = CircSt { st_nextRef     = CircRef 0
+    emptySt    = CircSt { st_nextRef     = Ref 0
                         , st_nextInputId = InputId 0
                         , st_inputs      = []
                         , st_env         = emptyEnv
                         }
 
-lookupCircuit :: Circ -> CircBuilder (Maybe CircRef)
+lookupCircuit :: Circ -> CircBuilder (Maybe Ref)
 lookupCircuit circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
 
-lookupRef :: CircRef -> CircBuilder (Maybe Circ)
+lookupRef :: Ref -> CircBuilder (Maybe Circ)
 lookupRef ref = do
   derefEnv <- gets (env_deref . st_env)
   return (M.lookup ref derefEnv)
 
-insertRef :: CircRef -> Circ -> CircBuilder ()
+insertRef :: Ref -> Circ -> CircBuilder ()
 insertRef ref circ = do
   derefEnv <- gets (env_deref . st_env)
   dedupEnv <- gets (env_dedup . st_env)
@@ -49,7 +49,7 @@ insertRef ref circ = do
         (M.insert circ ref dedupEnv)
     })
 
-nextRef :: CircBuilder CircRef
+nextRef :: CircBuilder Ref
 nextRef = do
   ref <- gets st_nextRef
   modify (\st -> st { st_nextRef = succ ref })
@@ -61,7 +61,7 @@ nextInputId = do
   modify (\st -> st { st_nextInputId = succ id })
   return id
 
-intern :: Circ -> CircBuilder CircRef
+intern :: Circ -> CircBuilder Ref
 intern circ = do
   maybeRef <- lookupCircuit circ
   case maybeRef of
@@ -74,7 +74,7 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-type EvalEnv = Map CircRef Bool
+type EvalEnv = Map Ref Bool
 
 eval :: Program Circ -> [Bool] -> [Bool]
 eval p inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
@@ -83,7 +83,7 @@ eval p inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
     env    = prog_env prog
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
-    traverse :: CircRef -> State EvalEnv Bool
+    traverse :: Ref -> State EvalEnv Bool
     traverse ref = do
       precomputed <- get
       case M.lookup ref precomputed of
@@ -108,23 +108,23 @@ eval p inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
 --------------------------------------------------------------------------------
 -- smart constructors
 
-input :: CircBuilder CircRef
+input :: CircBuilder Ref
 input = do id  <- nextInputId
            ref <- intern (Input id)
            modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
            return ref
 
-xor :: CircRef -> CircRef -> CircBuilder CircRef
+xor :: Ref -> Ref -> CircBuilder Ref
 xor x y = intern (Xor x y)
 
-or :: CircRef -> CircRef -> CircBuilder CircRef
+or :: Ref -> Ref -> CircBuilder Ref
 or x y = intern (Or x y)
 
-and :: CircRef -> CircRef -> CircBuilder CircRef
+and :: Ref -> Ref -> CircBuilder Ref
 and x y = intern (And x y)
 
-not :: CircRef -> CircBuilder CircRef
+not :: Ref -> CircBuilder Ref
 not x = intern (Not x)
 
-constant :: Bool -> CircBuilder CircRef
+constant :: Bool -> CircBuilder Ref
 constant b = intern (Const b)

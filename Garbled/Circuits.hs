@@ -20,14 +20,14 @@ import Prelude hiding (and, or)
 --------------------------------------------------------------------------------
 -- 8 bit adder example
 
-add1Bit :: CircRef -> CircRef -> CircRef -> CircBuilder (CircRef, CircRef)
+add1Bit :: Ref -> Ref -> Ref -> CircBuilder (Ref, Ref)
 add1Bit x y c = do
     s    <- xor x y
     out  <- xor c s
     cout <- bindM2 or (and x y) (and c s)
     return (out, cout)
 
-addBits :: [CircRef] -> [CircRef] -> CircBuilder ([CircRef], CircRef)
+addBits :: [Ref] -> [Ref] -> CircBuilder ([Ref], Ref)
 addBits xs ys = do
     f <- constant False
     builder xs ys f []

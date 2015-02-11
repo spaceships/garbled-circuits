@@ -43,7 +43,7 @@ garble prog = undefined
     {-inpIds = map (\(Input id) -> id) inps-}
 
 construct = undefined
-{-construct :: CircRef -> Garble ()-}
+{-construct :: Ref -> Garble ()-}
 {-construct ref = do-}
   {-circ     <- lookupCirc ref-}
   {-children <- mapM lookupGate (circRefs circ)-}
@@ -56,13 +56,13 @@ flipLabel p = WireLabelPair { wl_true  = wl_false p -- flip the true/false wire 
                             , wl_false = wl_true p  -- actually i don't think I can do this
                             }                       -- maybe need to keep permute bits the same?
 
-{-construct :: CircRef -> Garble WireLabelPair-}
+{-construct :: Ref -> Garble WireLabelPair-}
 {-construct ref = return pair -}
 {-[>construct (Xor _ _) [x,y] = Data.Bits.xor x y<]-}
 {-[>construct (And _ _) [x,y] = x && y<]-}
 {-[>construct (Or _ _)  [x,y] = x || y<]-}
 
-inputPair :: CircRef -> InputId -> Garble WireLabelPair
+inputPair :: Ref -> InputId -> Garble WireLabelPair
 inputPair ref id = do
   [x0, x1] <- getRandoms :: Garble [Int]
   c        <- getRandom  :: Garble Color
@@ -71,14 +71,14 @@ inputPair ref id = do
   return pair
 
 
-{-lookupGate :: CircRef -> Garble GarbledGate-}
+{-lookupGate :: Ref -> Garble GarbledGate-}
 {-lookupGate ref = do-}
   {-maybeGate <- M.lookup ref <$> gets gc_gates-}
   {-case maybeGate of-}
     {-Nothing -> error "[lookupGate] gate doesn't exist"-}
     {-Just g  -> return g-}
 
-{-lookupCirc :: CircRef -> Garble Circuit-}
+{-lookupCirc :: Ref -> Garble Circuit-}
 {-lookupCirc ref = do-}
   {-deref <- asks env_deref-}
   {-case M.lookup ref deref of-}
