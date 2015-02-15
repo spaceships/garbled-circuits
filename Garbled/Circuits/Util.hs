@@ -12,6 +12,9 @@ import           Data.Word
 bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
 bindM2 f a b = do x <- a; y <- b; f x y
 
+err :: Show s => String -> String -> [s] -> a
+err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
+
 violentLookup r e = case M.lookup r e of
   Nothing -> error "[violentLookup] something went horribly wrong"
   Just x  -> x

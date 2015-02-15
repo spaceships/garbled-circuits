@@ -16,7 +16,7 @@ data Circ = Input InputId
           | Xor (Ref Circ) (Ref Circ)
           | And (Ref Circ) (Ref Circ)
           | Or  (Ref Circ) (Ref Circ)
-          deriving (Eq, Ord)
+          deriving (Eq, Ord, Show)
 
 data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
@@ -27,7 +27,8 @@ data Program c = Program { prog_inputs  :: [Ref c]
                          , prog_env     :: Env c
                          }
 
-data TruthTable = TruthTable { tt_11   :: Bool
+data TruthTable = TTInput InputId
+                | TruthTable { tt_11   :: Bool
                              , tt_10   :: Bool
                              , tt_01   :: Bool
                              , tt_00   :: Bool
@@ -69,3 +70,20 @@ circRefs _         = []
 ttRefs :: TruthTable -> [Ref TruthTable]
 ttRefs tt = [tt_inpx tt, tt_inpy tt]
 
+circ2op :: Circ -> Operation
+circ2op (Input _) = OInput
+circ2op (Const _) = OConst
+circ2op (Not   _) = ONot
+circ2op (Xor _ _) = OXor
+circ2op (And _ _) = OAnd
+circ2op (Or  _ _) = OOr
+
+{-data BinaryOp = -}
+
+data Operation = OInput
+               | OConst
+               | ONot
+               | OXor
+               | OAnd
+               | OOr
+               deriving (Show, Eq, Ord)

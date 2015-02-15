@@ -36,6 +36,7 @@ addBits xs ys = do
     builder (x:xs) (y:ys) c outs = do 
       (out,c') <- add1Bit x y c
       builder xs ys c' (out:outs)
+    builder xs ys _ _ = err "builder" "lists of unequal length" [xs,ys]
 
 circ_8BitAdder :: Program Circ
 circ_8BitAdder = buildCircuit $ do
