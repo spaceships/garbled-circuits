@@ -2,7 +2,7 @@ module Garbled.Circuits.Garbler where
 
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util
-import Garbled.Circuits.Plaintext.Rewrite (foldConsts, topoSort)
+import Garbled.Circuits.Plaintext.Rewrite (topoSort)
 
 import           Control.Monad.Random
 import           Control.Monad.Reader
@@ -62,13 +62,13 @@ flipLabel p = WireLabelPair { wl_true  = wl_false p -- flip the true/false wire 
 {-[>construct (And _ _) [x,y] = x && y<]-}
 {-[>construct (Or _ _)  [x,y] = x || y<]-}
 
-inputPair :: Ref -> InputId -> Garble WireLabelPair
-inputPair ref id = do
-  [x0, x1] <- getRandoms :: Garble [Int]
-  c        <- getRandom  :: Garble Color
-  let pair = WireLabelPair { wl_true = (x0, c), wl_false = (x1, not c) }
-  writep ref (GarbledInput pair)
-  return pair
+{-inputPair :: Ref -> InputId -> Garble WireLabelPair-}
+{-inputPair ref id = do-}
+  {-[x0, x1] <- getRandoms :: Garble [Int]-}
+  {-c        <- getRandom  :: Garble Color-}
+  {-let pair = WireLabelPair { wl_true = (x0, c), wl_false = (x1, not c) }-}
+  {-writep ref (GarbledInput pair)-}
+  {-return pair-}
 
 
 {-lookupGate :: Ref -> Garble GarbledGate-}

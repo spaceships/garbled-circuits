@@ -31,16 +31,6 @@ bits2Word bs = sum $ zipWith select bs pow2s
 {-pow2s :: Num a => [a]-}
 pow2s = [ 2 ^ x | x <- [0..] ]
 
-circRefs :: Circ -> [Ref]
-circRefs (Not x  ) = [x]
-circRefs (Xor x y) = [x,y]
-circRefs (And x y) = [x,y]
-circRefs (Or  x y) = [x,y]
-circRefs _         = []
-
-ttRefs :: TruthTable -> [Ref]
-ttRefs tt = [tt_inpx tt, tt_inpy tt]
-
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
 
@@ -52,7 +42,7 @@ emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
     
 internp :: (Ord c, MonadState (Program c) m) 
         => c 
-        -> m Ref
+        -> m (Ref c)
 internp circ = do
   prog <- get
   let env   = prog_env prog
@@ -69,7 +59,7 @@ internp circ = do
       return ref
 
 writep :: (Ord c, MonadState (Program c) m)
-         => Ref 
+         => Ref c
          -> c
          -> m ()
 writep ref circ = do
@@ -81,7 +71,7 @@ writep ref circ = do
   put prog { prog_env = env' }
 
 lookp :: (Ord c, MonadState (Program c) m)
-     => Ref 
+     => Ref c
      -> m c
 lookp ref = do
   env <- gets prog_env
@@ -89,14 +79,14 @@ lookp ref = do
     Nothing -> error "[lookp] no c"
     Just c  -> return c
 
-lookupRef :: Ord c => c -> Program c -> Ref
+lookupRef :: Ord c => c -> Program c -> Ref c
 lookupRef c prog = case M.lookup c dedup of
     Nothing  -> error "[lookupC] no ref"
     Just ref -> ref
   where 
     dedup = env_dedup (prog_env prog)
 
-lookupC :: Ref -> Program c -> c
+lookupC :: Ref c -> Program c -> c
 lookupC ref prog = case M.lookup ref deref of
     Nothing -> error "[lookupRef] no c"
     Just c  -> c
