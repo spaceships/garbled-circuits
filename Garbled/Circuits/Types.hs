@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards, GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Garbled.Circuits.Types where
 
@@ -20,21 +20,45 @@ data Circ = Input InputId
 
 data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
-                 }
+                 } deriving (Show)
 
 data Program c = Program { prog_inputs  :: [Ref c]
                          , prog_outputs :: [Ref c]
                          , prog_env     :: Env c
-                         }
+                         } deriving (Show)
 
-data TruthTable = TTInput InputId
-                | TruthTable { tt_11   :: Bool
-                             , tt_10   :: Bool
-                             , tt_01   :: Bool
-                             , tt_00   :: Bool
-                             , tt_inpx :: Ref TruthTable
-                             , tt_inpy :: Ref TruthTable
-                             } deriving (Eq, Ord)
+data TruthTable = TTInp InputId
+                | TT { tt_f    :: Bool -> Bool -> Bool 
+                     , tt_inpx :: Ref TruthTable
+                     , tt_inpy :: Ref TruthTable
+                     }
+
+instance Eq TruthTable where
+  TTInp a == TTInp b = a == b
+  TT {tt_inpx = ax, tt_inpy = ay, tt_f = fa} == TT {tt_inpx = bx, tt_inpy = by, tt_f = fb} = 
+    ax == bx && ay == by && 
+    fa True  True  == fb True  True  &&
+    fa True  False == fb True  False &&
+    fa False True  == fb False True  &&
+    fa False False == fb False False
+  _ == _ = False
+
+instance Ord TruthTable where
+  TTInp a <= TTInp b = a <= b
+  TT {tt_inpx = ax, tt_inpy = ay, tt_f = fa} <= TT {tt_inpx = bx, tt_inpy = by, tt_f = fb} = 
+    ax <= bx || ay <= by || 
+    fa True  True  <= fb True  True  ||
+    fa True  False <= fb True  False ||
+    fa False True  <= fb False True  ||
+    fa False False <= fb False False
+  TTInp _ <= TT {..} = True
+  TT {..} <= TTInp _ = False
+
+instance Show TruthTable where
+  show (TT {tt_f = f}) = "TT" ++ bit (f True  True) ++ bit (f True  False) 
+                              ++ bit (f False True) ++ bit (f False False)
+    where bit b = if b then "1" else "0"
+  show (TTInp id) = "TTInp " ++ show id
 
 type Secret    = Int
 type Color     = Bool

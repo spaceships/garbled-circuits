@@ -5,7 +5,7 @@ module Garbled.Circuits.Util where
 import Garbled.Circuits.Types
 
 import           Control.Monad.State
-import           Data.Bits
+import           Data.Bits ((.&.))
 import qualified Data.Map as M
 import           Data.Word
 
@@ -26,12 +26,10 @@ word2Bits x = map (bitAnd x) (take 8 pow2s)
     bitAnd a b = a .&. b > 0
 
 -- takes a little-endian list of bits
-{-bits2Word :: Integral n => [Bool] -> n-}
 bits2Word bs = sum $ zipWith select bs pow2s
   where
     select b x = if b then x else 0
 
-{-pow2s :: Num a => [a]-}
 pow2s = [ 2 ^ x | x <- [0..] ]
 
 emptyProg :: Program c
@@ -40,12 +38,13 @@ emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
 emptyEnv :: Env c
 emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
 
+xor :: Bool -> Bool -> Bool
+xor x y = not (x && y) && not (not x && not y) -- why is XOR not more popular?!?!
+
 --------------------------------------------------------------------------------
 -- polymorphic helper functions
     
-internp :: (Ord c, MonadState (Program c) m) 
-        => c 
-        -> m (Ref c)
+internp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 internp circ = do
   prog <- get
   let env   = prog_env prog
@@ -54,17 +53,23 @@ internp circ = do
   case M.lookup circ dedup of
     Just ref -> return ref
     Nothing  -> do
-      let ref = fst $ M.findMax deref
+      let ref    = if M.null deref then Ref 0 else succ $ fst (M.findMax deref)
           dedup' = M.insert circ ref dedup
           deref' = M.insert ref circ deref
-          env'   = env { env_dedup = dedup, env_deref = deref }
+          env'   = env { env_dedup = dedup', env_deref = deref' }
       put prog { prog_env = env' }
       return ref
 
-writep :: (Ord c, MonadState (Program c) m)
-         => Ref c
-         -> c
-         -> m ()
+inputp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
+inputp inp = do
+  ref <- internp inp
+  modify (\p -> p { prog_inputs = ref : prog_inputs p })
+  return ref
+
+outputp :: (Ord c, MonadState (Program c) m) => Ref c -> m ()
+outputp ref = modify (\p -> p { prog_outputs = ref : prog_outputs p })
+
+writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()
 writep ref circ = do
   prog <- get
   let env   = prog_env prog
@@ -73,9 +78,7 @@ writep ref circ = do
       env'  = env { env_dedup = dedup, env_deref = deref }
   put prog { prog_env = env' }
 
-lookp :: (Ord c, MonadState (Program c) m)
-     => Ref c
-     -> m c
+lookp :: (Ord c, MonadState (Program c) m) => Ref c -> m c
 lookp ref = do
   env <- gets prog_env
   case M.lookup ref (env_deref env) of
@@ -96,3 +99,17 @@ lookupC ref prog = case M.lookup ref deref of
   where 
     deref = env_deref (prog_env prog)
 
+--------------------------------------------------------------------------------
+-- truth table helpers
+
+flipYs :: TruthTable -> TruthTable
+flipYs (TTInp id) = TTInp id
+flipYs tt = tt { tt_f = \x y -> tt_f tt x (not y) }
+
+flipXs :: TruthTable -> TruthTable
+flipXs (TTInp id) = TTInp id
+flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
+
+tt_xor = TT { tt_f = xor,  tt_inpx = Ref 0, tt_inpy = Ref 0 }
+tt_and = TT { tt_f = (&&), tt_inpx = Ref 0, tt_inpy = Ref 0 }
+tt_or  = TT { tt_f = (||), tt_inpx = Ref 0, tt_inpy = Ref 0 }

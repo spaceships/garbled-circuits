@@ -4,7 +4,7 @@ module Garbled.Circuits where
 
 import Garbled.Circuits.Garbler
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util
+import Garbled.Circuits.Util (bindM2, err, bits2Word, word2Bits)
 import Garbled.Circuits.Plaintext.Language
 
 import Data.Word
