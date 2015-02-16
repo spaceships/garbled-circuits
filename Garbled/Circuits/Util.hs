@@ -9,15 +9,14 @@ import           Data.Bits ((.&.))
 import qualified Data.Map as M
 import           Data.Word
 
+--------------------------------------------------------------------------------
+-- general helper functions
+
 bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
 bindM2 f a b = do x <- a; y <- b; f x y
 
 err :: Show s => String -> String -> [s] -> a
 err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
-
-violentLookup r e = case M.lookup r e of
-  Nothing -> error "[violentLookup] something went horribly wrong"
-  Just x  -> x
 
 -- returns a little-endian list of bits
 word2Bits :: Word8 -> [Bool]
@@ -32,18 +31,12 @@ bits2Word bs = sum $ zipWith select bs pow2s
 
 pow2s = [ 2 ^ x | x <- [0..] ]
 
-emptyProg :: Program c
-emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
-
-emptyEnv :: Env c
-emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
-
 xor :: Bool -> Bool -> Bool
-xor x y = not (x && y) && not (not x && not y) -- why is XOR not more popular?!?!
+xor x y = not (x && y) && not (not x && not y)
 
 --------------------------------------------------------------------------------
--- polymorphic helper functions
-    
+-- polymorphic helper functions for State monads over a Program
+
 internp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 internp circ = do
   prog <- get
@@ -89,18 +82,18 @@ lookupRef :: Ord c => c -> Program c -> Ref c
 lookupRef c prog = case M.lookup c dedup of
     Nothing  -> error "[lookupC] no ref"
     Just ref -> ref
-  where 
+  where
     dedup = env_dedup (prog_env prog)
 
 lookupC :: Ref c -> Program c -> c
 lookupC ref prog = case M.lookup ref deref of
     Nothing -> error "[lookupRef] no c"
     Just c  -> c
-  where 
+  where
     deref = env_deref (prog_env prog)
 
 --------------------------------------------------------------------------------
--- truth table helpers
+-- truth table helper functions
 
 flipYs :: TruthTable -> TruthTable
 flipYs (TTInp id) = TTInp id
@@ -110,6 +103,15 @@ flipXs :: TruthTable -> TruthTable
 flipXs (TTInp id) = TTInp id
 flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
 
-tt_xor = TT { tt_f = xor,  tt_inpx = Ref 0, tt_inpy = Ref 0 }
-tt_and = TT { tt_f = (&&), tt_inpx = Ref 0, tt_inpy = Ref 0 }
-tt_or  = TT { tt_f = (||), tt_inpx = Ref 0, tt_inpy = Ref 0 }
+tt_xor = TT { tt_f = xor,  tt_inpx = undefined, tt_inpy = undefined }
+tt_and = TT { tt_f = (&&), tt_inpx = undefined, tt_inpy = undefined }
+tt_or  = TT { tt_f = (||), tt_inpx = undefined, tt_inpy = undefined }
+
+--------------------------------------------------------------------------------
+-- circuit helper functions
+
+boolean :: Circ -> Bool
+boolean (Xor _ _) = True
+boolean (And _ _) = True
+boolean (Or  _ _) = True
+boolean _ = False

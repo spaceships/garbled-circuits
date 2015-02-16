@@ -1,6 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
 
-
 module Garbled.Circuits.Plaintext.Rewrite
   (
     topoSort
@@ -18,11 +17,12 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 
-type Set = S.Set
+--------------------------------------------------------------------------------
+-- yay polymorphic topoSort
 
+type Set = S.Set
 type DFS c = WriterT [Ref c] (State (Set (Ref c), Set (Ref c)))
 
--- yay polymorphic topoSort
 topoSort :: CanHaveChildren c => Program c -> [Ref c]
 topoSort prog = snd $ evalState (runWriterT loop) initialState
   where
@@ -38,12 +38,12 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
       tell [ref]
 
 --------------------------------------------------------------------------------
--- transform from circ to tt
+-- transform circ to tt
 
-data UnaryOp = UNot (Ref TruthTable)
-             | UId  (Ref TruthTable)
-             | UConst Bool
-             deriving (Eq, Ord, Show)
+data NotBinary = UNot (Ref TruthTable)
+               | UId  (Ref TruthTable)
+               | UConst Bool
+               deriving (Eq, Ord, Show)
 
 circ2tt :: Program Circ -> Program TruthTable
 circ2tt prog = prog'
@@ -58,7 +58,7 @@ circ2tt prog = prog'
       modify (\p -> p { prog_outputs = outs' })
 
     --return a circ if it is a unary gate in order to fold it into its parent
-    trans :: Ref Circ -> State (Program TruthTable) (Either UnaryOp (Ref TruthTable))
+    trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     trans ref = do
       let circ = lookupC ref prog
       let op = circ2op circ
@@ -73,9 +73,9 @@ circ2tt prog = prog'
         x        -> error ("[trans] unrecognized pattern: " ++ show x)
          
     constructBin :: Operation
-                 -> Either UnaryOp (Ref TruthTable) 
-                 -> Either UnaryOp (Ref TruthTable) 
-                 -> State (Program TruthTable) (Either UnaryOp (Ref TruthTable))
+                 -> Either NotBinary (Ref TruthTable) 
+                 -> Either NotBinary (Ref TruthTable) 
+                 -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     constructBin op (Right x) (Right y) = Right <$> internp (create op x y)
     -- TODO: DO I REALLY NEED ALL POSSIBLE COMBINATIONS. this is so complicated
     -- UId children: easy
@@ -97,8 +97,8 @@ circ2tt prog = prog'
     constructBin op (Left (UNot x)) (Left (UNot y)) =
       Right <$> internp (flipYs (flipXs (create op x y)))
 
-    constructNot :: Either UnaryOp (Ref TruthTable)
-                 -> State (Program TruthTable) (Either UnaryOp (Ref TruthTable))
+    constructNot :: Either NotBinary (Ref TruthTable)
+                 -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     constructNot (Right x)         = return $ Left (UNot x)
     constructNot (Left (UNot x))   = return $ Left (UId x)
     constructNot (Left (UId x))    = return $ Left (UNot x)
@@ -110,7 +110,7 @@ circ2tt prog = prog'
     create OOr  x y = tt_or  { tt_inpx = x, tt_inpy = y }
     create op x y = err "create" "unrecognized operation" [op]
 
-    foldConst :: Operation -> Bool -> Ref TruthTable -> UnaryOp
+    foldConst :: Operation -> Bool -> Ref TruthTable -> NotBinary
     foldConst OXor True  x = UNot x
     foldConst OXor False x = UId x
     foldConst OAnd True  x = UId x
@@ -119,11 +119,3 @@ circ2tt prog = prog'
     foldConst OOr  False x = UId x
     foldConst op _ _ = err "foldConst" "unrecognized operation" [op]
 
---------------------------------------------------------------------------------
--- circuit helper functions
-
-boolean :: Circ -> Bool
-boolean (Xor _ _) = True
-boolean (And _ _) = True
-boolean (Or  _ _) = True
-boolean _ = False

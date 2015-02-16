@@ -79,18 +79,15 @@ type EvalEnv = Map (Ref Circ) Bool
 eval :: Program Circ -> [Bool] -> [Bool]
 eval prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
   where
-    {-prog   = foldConsts p-}
-    env    = prog_env prog
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
     traverse :: Ref Circ -> State EvalEnv Bool
-    traverse ref = do
-      precomputed <- get
+    traverse ref = get >>= \precomputed ->
       case M.lookup ref precomputed of
         Just b  -> return b
         Nothing -> do
-          let circ = violentLookup ref (env_deref env)
-          children <- mapM traverse (circRefs circ)
+          let circ = lookupC ref prog
+          children <- mapM traverse (children circ)
           let result = reconstruct circ children
           modify (M.insert ref result)
           return result
@@ -98,12 +95,13 @@ eval prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
     reconstruct :: Circ -> [Bool] -> Bool
     reconstruct (Input id) [] = case M.lookup id inputs of
       Just b  -> b
-      Nothing -> error $ "[reconstruct] No input with id " ++ show id
+      Nothing -> err "reconstruct" "no input with id" [id]
     reconstruct (Const x) []    = x
     reconstruct (Not _)   [x]   = Prelude.not x
     reconstruct (Xor _ _) [x,y] = Data.Bits.xor x y
     reconstruct (And _ _) [x,y] = x && y
     reconstruct (Or _ _)  [x,y] = x || y
+    reconstruct _ _ = err "reconstruct" "unrecognized pattern" [-1]
 
 --------------------------------------------------------------------------------
 -- smart constructors
