@@ -2,7 +2,7 @@ module Garbled.Circuits.Garbler where
 
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util
-import Garbled.Circuits.Plaintext.Rewrite (topoSort)
+import Garbled.Circuits.Plaintext.TruthTable
 
 import           Control.Monad.Random
 import           Control.Monad.Reader

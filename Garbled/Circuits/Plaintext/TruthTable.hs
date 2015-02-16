@@ -1,44 +1,26 @@
-{-# LANGUAGE LambdaCase #-}
-
-module Garbled.Circuits.Plaintext.Rewrite
-  (
-    topoSort
-  , circ2tt
+module Garbled.Circuits.Plaintext.TruthTable
+  ( circ2tt
   )
 where
 
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util
+import Garbled.Circuits.Util (internp, inputp, lookupC, err)
 
-import           Control.Monad.State
-import           Control.Monad.Writer
-import           Data.Functor
-import qualified Data.Map as M
-import           Data.Maybe (fromMaybe)
-import qualified Data.Set as S
-
---------------------------------------------------------------------------------
--- yay polymorphic topoSort
-
-type Set = S.Set
-type DFS c = WriterT [Ref c] (State (Set (Ref c), Set (Ref c)))
-
-topoSort :: CanHaveChildren c => Program c -> [Ref c]
-topoSort prog = snd $ evalState (runWriterT loop) initialState
-  where
-    deref        = env_deref (prog_env prog)
-    initialState = (S.fromList (M.keys deref), S.empty)
-    loop = next >>= \case Just ref -> visit ref; Nothing -> return ()
-    visit ref = let circ = lookupC ref prog 
-                in mapM_ visit (children circ) >> mark ref
-    next = gets fst >>= \todo -> return $ 
-      if S.size todo > 0 then Just (S.findMax todo) else Nothing
-    mark ref = get >>= \(todo, done) -> do
-      put (S.delete ref todo, S.insert ref done) 
-      tell [ref]
+import Control.Monad.State
+import Data.Bits (xor)
+import Data.Functor
 
 --------------------------------------------------------------------------------
 -- transform circ to tt
+
+-- it is convenient to have a Circ without associated data
+data Operation = OInput
+               | OConst
+               | ONot
+               | OXor
+               | OAnd
+               | OOr
+               deriving (Show, Eq, Ord)
 
 data NotBinary = UNot (Ref TruthTable)
                | UId  (Ref TruthTable)
@@ -51,7 +33,7 @@ circ2tt prog = prog'
     prog' = execState (transform $ prog_outputs prog) emptyProg
 
     transform :: [Ref Circ] -> State (Program TruthTable) ()
-    transform outs = do 
+    transform outs = do
         eitherOuts <- mapM trans outs
         let outs' = map check eitherOuts
         modify (\p -> p { prog_outputs = outs' })
@@ -74,10 +56,10 @@ circ2tt prog = prog'
         Const b  -> return $ Left (UConst b)
         Input id -> Right <$> inputp (TTInp id)
         x        -> error ("[trans] unrecognized pattern: " ++ show x)
-         
+
     constructBin :: Operation
-                 -> Either NotBinary (Ref TruthTable) 
-                 -> Either NotBinary (Ref TruthTable) 
+                 -> Either NotBinary (Ref TruthTable)
+                 -> Either NotBinary (Ref TruthTable)
                  -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     constructBin op (Right x) (Right y) = Right <$> internp (create op x y)
     -- TODO: DO I REALLY NEED ALL POSSIBLE COMBINATIONS. this is so complicated
@@ -88,8 +70,8 @@ circ2tt prog = prog'
     -- UConst children: tricky
     constructBin op (Right x) (Left (UConst b)) = return $ Left (foldConst op b x)
     constructBin op (Left (UConst b)) (Right y) = return $ Left (foldConst op b y)
-    constructBin op (Left (UConst b1)) (Left (UConst b2)) = 
-      return $ Left $ case op of 
+    constructBin op (Left (UConst b1)) (Left (UConst b2)) =
+      return $ Left $ case op of
         OXor -> UConst $ b1 `xor` b2
         OAnd -> UConst $ b1 && b2
         OOr  -> UConst $ b1 || b2
@@ -122,3 +104,31 @@ circ2tt prog = prog'
     foldConst OOr  False x = UId x
     foldConst op _ _ = err "foldConst" "unrecognized operation" [op]
 
+--------------------------------------------------------------------------------
+-- helper functions
+
+flipYs :: TruthTable -> TruthTable
+flipYs (TTInp id) = TTInp id
+flipYs tt = tt { tt_f = \x y -> tt_f tt x (not y) }
+
+flipXs :: TruthTable -> TruthTable
+flipXs (TTInp id) = TTInp id
+flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
+
+tt_xor = TT { tt_f = xor,  tt_inpx = undefined, tt_inpy = undefined }
+tt_and = TT { tt_f = (&&), tt_inpx = undefined, tt_inpy = undefined }
+tt_or  = TT { tt_f = (||), tt_inpx = undefined, tt_inpy = undefined }
+
+boolean :: Circ -> Bool
+boolean (Xor _ _) = True
+boolean (And _ _) = True
+boolean (Or  _ _) = True
+boolean _ = False
+
+circ2op :: Circ -> Operation
+circ2op (Input _) = OInput
+circ2op (Const _) = OConst
+circ2op (Not   _) = ONot
+circ2op (Xor _ _) = OXor
+circ2op (And _ _) = OAnd
+circ2op (Or  _ _) = OOr

@@ -1,13 +1,25 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
-module Garbled.Circuits.Util where
+module Garbled.Circuits.Util
+  ( bindM2
+  , err
+  , word2Bits
+  , bits2Word
+  , internp
+  , inputp
+  , lookupC
+  , topoSort
+  )
+where
 
 import Garbled.Circuits.Types
 
 import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Bits ((.&.))
 import qualified Data.Map as M
 import           Data.Word
+import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -30,9 +42,6 @@ bits2Word bs = sum $ zipWith select bs pow2s
     select b x = if b then x else 0
 
 pow2s = [ 2 ^ x | x <- [0..] ]
-
-xor :: Bool -> Bool -> Bool
-xor x y = not (x && y) && not (not x && not y)
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program
@@ -92,26 +101,20 @@ lookupC ref prog = case M.lookup ref deref of
   where
     deref = env_deref (prog_env prog)
 
---------------------------------------------------------------------------------
--- truth table helper functions
+-- yay polymorphic topoSort
+type Set = S.Set
+type DFS c = WriterT [Ref c] (State (Set (Ref c), Set (Ref c)))
 
-flipYs :: TruthTable -> TruthTable
-flipYs (TTInp id) = TTInp id
-flipYs tt = tt { tt_f = \x y -> tt_f tt x (not y) }
-
-flipXs :: TruthTable -> TruthTable
-flipXs (TTInp id) = TTInp id
-flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
-
-tt_xor = TT { tt_f = xor,  tt_inpx = undefined, tt_inpy = undefined }
-tt_and = TT { tt_f = (&&), tt_inpx = undefined, tt_inpy = undefined }
-tt_or  = TT { tt_f = (||), tt_inpx = undefined, tt_inpy = undefined }
-
---------------------------------------------------------------------------------
--- circuit helper functions
-
-boolean :: Circ -> Bool
-boolean (Xor _ _) = True
-boolean (And _ _) = True
-boolean (Or  _ _) = True
-boolean _ = False
+topoSort :: CanHaveChildren c => Program c -> [Ref c]
+topoSort prog = snd $ evalState (runWriterT loop) initialState
+  where
+    deref        = env_deref (prog_env prog)
+    initialState = (S.fromList (M.keys deref), S.empty)
+    loop = next >>= \case Just ref -> visit ref; Nothing -> return ()
+    visit ref = let circ = lookupC ref prog
+                in mapM_ visit (children circ) >> mark ref
+    next = gets fst >>= \todo -> return $
+      if S.size todo > 0 then Just (S.findMax todo) else Nothing
+    mark ref = get >>= \(todo, done) -> do
+      put (S.delete ref todo, S.insert ref done)
+      tell [ref]

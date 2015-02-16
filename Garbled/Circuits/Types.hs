@@ -2,7 +2,6 @@
 
 module Garbled.Circuits.Types where
 
-import           Control.Monad.State
 import qualified Data.Map as M
 
 type Map = M.Map
@@ -18,15 +17,6 @@ data Circ = Input InputId
           | And (Ref Circ) (Ref Circ)
           | Or  (Ref Circ) (Ref Circ)
           deriving (Eq, Ord, Show)
-
--- sometimes it is convenient to not have any associated data
-data Operation = OInput
-               | OConst
-               | ONot
-               | OXor
-               | OAnd
-               | OOr
-               deriving (Show, Eq, Ord)
 
 data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
@@ -101,19 +91,11 @@ instance Show TruthTable where
                               ++ bit (f False True) ++ bit (f False False)
     where bit b = if b then "1" else "0"
 
-instance Show (Ref c) where 
+instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"
 
-instance Show InputId where 
+instance Show InputId where
   show (InputId id) = "in" ++ show id
-
-circ2op :: Circ -> Operation
-circ2op (Input _) = OInput
-circ2op (Const _) = OConst
-circ2op (Not   _) = ONot
-circ2op (Xor _ _) = OXor
-circ2op (And _ _) = OAnd
-circ2op (Or  _ _) = OOr
 
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }

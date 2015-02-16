@@ -1,13 +1,22 @@
-module Garbled.Circuits.Plaintext.Language where
+module Garbled.Circuits.Plaintext.Language
+  ( CircBuilder
+  , buildCirc
+  , evalCirc
+  , c_input
+  , c_xor
+  , c_and
+  , c_not
+  , c_or
+  , c_const
+  )
+where
 
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util
-import Garbled.Circuits.Plaintext.Rewrite
+import Garbled.Circuits.Util (err, lookupC)
 
 import           Control.Monad.State
 import qualified Data.Bits
 import qualified Data.Map as M
-import           Prelude hiding (or, and)
 
 data CircSt = CircSt { st_nextRef     :: Ref Circ
                      , st_inputs      :: [Ref Circ]
@@ -17,11 +26,11 @@ data CircSt = CircSt { st_nextRef     :: Ref Circ
 
 type CircBuilder a = State CircSt a
 
-buildCircuit :: CircBuilder [Ref Circ] -> Program Circ
-buildCircuit c = Program { prog_inputs  = st_inputs st
-                         , prog_outputs = outs
-                         , prog_env     = st_env st
-                         }
+buildCirc :: CircBuilder [Ref Circ] -> Program Circ
+buildCirc c = Program { prog_inputs  = st_inputs st
+                      , prog_outputs = outs
+                      , prog_env     = st_env st
+                      }
   where
     (outs, st) = runState c emptySt
     emptySt    = CircSt { st_nextRef     = Ref 0
@@ -30,8 +39,8 @@ buildCircuit c = Program { prog_inputs  = st_inputs st
                         , st_env         = emptyEnv
                         }
 
-lookupCircuit :: Circ -> CircBuilder (Maybe (Ref Circ))
-lookupCircuit circ = do
+lookupCirc :: Circ -> CircBuilder (Maybe (Ref Circ))
+lookupCirc circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
 
@@ -63,7 +72,7 @@ nextInputId = do
 
 intern :: Circ -> CircBuilder (Ref Circ)
 intern circ = do
-  maybeRef <- lookupCircuit circ
+  maybeRef <- lookupCirc circ
   case maybeRef of
     Just ref -> return ref
     Nothing  -> do
@@ -76,8 +85,8 @@ intern circ = do
 
 type EvalEnv = Map (Ref Circ) Bool
 
-eval :: Program Circ -> [Bool] -> [Bool]
-eval prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+evalCirc :: Program Circ -> [Bool] -> [Bool]
+evalCirc prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
@@ -106,23 +115,23 @@ eval prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
 --------------------------------------------------------------------------------
 -- smart constructors
 
-input :: CircBuilder (Ref Circ)
-input = do id  <- nextInputId
-           ref <- intern (Input id)
-           modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
-           return ref
+c_input :: CircBuilder (Ref Circ)
+c_input = do id  <- nextInputId
+             ref <- intern (Input id)
+             modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
+             return ref
 
-xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-xor x y = intern (Xor x y)
+c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
+c_xor x y = intern (Xor x y)
 
-or :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-or x y = intern (Or x y)
+c_or :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
+c_or x y = intern (Or x y)
 
-and :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-and x y = intern (And x y)
+c_and :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
+c_and x y = intern (And x y)
 
-not :: Ref Circ -> CircBuilder (Ref Circ)
-not x = intern (Not x)
+c_not :: Ref Circ -> CircBuilder (Ref Circ)
+c_not x = intern (Not x)
 
-constant :: Bool -> CircBuilder (Ref Circ)
-constant b = intern (Const b)
+c_const :: Bool -> CircBuilder (Ref Circ)
+c_const b = intern (Const b)
