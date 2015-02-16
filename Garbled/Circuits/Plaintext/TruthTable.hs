@@ -1,14 +1,16 @@
 module Garbled.Circuits.Plaintext.TruthTable
   ( circ2tt
+  , evalTT
   )
 where
 
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util (internp, inputp, lookupC, err)
 
-import Control.Monad.State
-import Data.Bits (xor)
-import Data.Functor
+import qualified Data.Map as M
+import           Control.Monad.State
+import           Data.Bits (xor)
+import           Data.Functor
 
 --------------------------------------------------------------------------------
 -- transform circ to tt
@@ -103,6 +105,35 @@ circ2tt prog = prog'
     foldConst OOr  True  x = UConst True
     foldConst OOr  False x = UId x
     foldConst op _ _ = err "foldConst" "unrecognized operation" [op]
+
+--------------------------------------------------------------------------------
+-- truth table evaluator
+
+type EvalEnv = Map (Ref TruthTable) Bool
+
+evalTT :: Program TruthTable -> [Bool] -> [Bool]
+evalTT prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+  where
+    inputs = M.fromList (zip (map InputId [0..]) inps)
+
+    traverse :: Ref TruthTable -> State EvalEnv Bool
+    traverse ref = get >>= \precomputed ->
+      case M.lookup ref precomputed of
+        Just b  -> return b
+        Nothing -> do
+          let table = lookupC ref prog
+          children <- mapM traverse (children table)
+          let result = reconstruct table children
+          modify (M.insert ref result)
+          return result
+
+    reconstruct :: TruthTable -> [Bool] -> Bool
+    reconstruct (TTInp id) [] = case M.lookup id inputs of
+      Just b  -> b
+      Nothing -> err "reconstruct" "no input with id" [id]
+    reconstruct (TT {tt_f = f}) [x,y] = f x y
+    reconstruct _ _ = err "reconstruct" "bad pattern" [-1]
+
 
 --------------------------------------------------------------------------------
 -- helper functions

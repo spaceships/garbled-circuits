@@ -6,12 +6,14 @@ import Garbled.Circuits.Garbler
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util (bindM2, err, bits2Word, word2Bits)
 import Garbled.Circuits.Plaintext.Language
+import Garbled.Circuits.Plaintext.TruthTable
 
 import Control.Monad
 import Data.Word
 
 -- circuit language - done
--- garbled circuit representation - in progress: translate to intermediate TruthTable representation
+-- intermediate TruthTable representation - done
+-- garbled circuit representation - in progress
 -- garbling
 -- ot
 -- evaluation
@@ -48,3 +50,9 @@ eval_8BitAdder :: Word8 -> Word8 -> Word8
 eval_8BitAdder x y = bits2Word result
   where
     result = evalCirc circ_8BitAdder (word2Bits x ++ word2Bits y)
+
+-- convert to TruthTable and use TruthTable evaluator
+eval_8BitAdderTT :: Word8 -> Word8 -> Word8
+eval_8BitAdderTT x y = bits2Word result
+  where
+    result = evalTT (circ2tt circ_8BitAdder) (word2Bits x ++ word2Bits y)
