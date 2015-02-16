@@ -35,19 +35,20 @@ data TruthTable = TTInp InputId
 
 type Secret = Int
 
-{-type Color = Bool-}
-{-type WireLabel = (Secret, Color)-}
+type Color = Bool
 
-type WireLabel = Secret
+type WireLabel = (Color, Secret)
 
 data WireLabelPair = WireLabelPair { wl_true  :: WireLabel
                                    , wl_false :: WireLabel
                                    } deriving (Eq, Ord)
 
+type GarbledGateTable = [((Color,Color), WireLabel)]
+
 data GarbledGate = GarbledInput WireLabelPair
                  | GarbledGate { gate_inpx  :: Ref GarbledGate
                                , gate_inpy  :: Ref GarbledGate
-                               , gate_table :: [Secret]
+                               , gate_table :: GarbledGateTable
                                } deriving (Eq, Ord)
 
 class CanHaveChildren c where

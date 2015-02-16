@@ -126,7 +126,7 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
 --------------------------------------------------------------------------------
 -- garbled gate helpers
 
-garbledGate :: Ref GarbledGate -> Ref GarbledGate -> [Secret] -> GarbledGate
+garbledGate :: Ref GarbledGate -> Ref GarbledGate -> GarbledGateTable -> GarbledGate
 garbledGate x y tab = GarbledGate { gate_inpx  = x
                                   , gate_inpy  = y
                                   , gate_table = tab
