@@ -7,9 +7,9 @@ import qualified Data.Map as M
 
 type Map = M.Map
 
-newtype Ref a = Ref Int deriving (Enum, Ord, Eq, Show)
+newtype Ref a = Ref Int deriving (Enum, Ord, Eq)
 
-newtype InputId = InputId Int deriving (Enum, Ord, Eq, Show)
+newtype InputId = InputId Int deriving (Enum, Ord, Eq)
 
 data Circ = Input InputId
           | Const Bool
@@ -96,10 +96,16 @@ instance Ord TruthTable where
   TT {..} <= TTInp _ = False
 
 instance Show TruthTable where
+  show (TTInp id) = show id
   show (TT {tt_f = f}) = "TT" ++ bit (f True  True) ++ bit (f True  False)
                               ++ bit (f False True) ++ bit (f False False)
     where bit b = if b then "1" else "0"
-  show (TTInp id) = "TTInp " ++ show id
+
+instance Show (Ref c) where 
+  show (Ref x) = "<" ++ show x ++ ">"
+
+instance Show InputId where 
+  show (InputId id) = "in" ++ show id
 
 circ2op :: Circ -> Operation
 circ2op (Input _) = OInput

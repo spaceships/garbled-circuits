@@ -52,10 +52,13 @@ circ2tt prog = prog'
 
     transform :: [Ref Circ] -> State (Program TruthTable) ()
     transform outs = do 
-      eitherOuts <- mapM trans outs
-      let check = either (\x -> err "transform" "non binary top level gate" [x]) id
-          outs' = map check eitherOuts
-      modify (\p -> p { prog_outputs = outs' })
+        eitherOuts <- mapM trans outs
+        let outs' = map check eitherOuts
+        modify (\p -> p { prog_outputs = outs' })
+      where
+        check (Right ref)      = ref
+        check (Left (UId ref)) = ref
+        check (Left x)         = err "check" "non binary top level gate" [x]
 
     --return a circ if it is a unary gate in order to fold it into its parent
     trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
@@ -82,7 +85,7 @@ circ2tt prog = prog'
     constructBin op (Left (UId x)) (Right y)      = Right <$> internp (create op x y)
     constructBin op (Right x) (Left (UId y))      = Right <$> internp (create op x y)
     constructBin op (Left (UId x)) (Left (UId y)) = Right <$> internp (create op x y)
-    -- UConst: tricky
+    -- UConst children: tricky
     constructBin op (Right x) (Left (UConst b)) = return $ Left (foldConst op b x)
     constructBin op (Left (UConst b)) (Right y) = return $ Left (foldConst op b y)
     constructBin op (Left (UConst b1)) (Left (UConst b2)) = 
@@ -91,7 +94,7 @@ circ2tt prog = prog'
         OAnd -> UConst $ b1 && b2
         OOr  -> UConst $ b1 || b2
         _    -> err "constructBin" "unrecognized operation" [op]
-    -- UNot child: tricky
+    -- UNot children: tricky
     constructBin op (Right x) (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
     constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
     constructBin op (Left (UNot x)) (Left (UNot y)) =
