@@ -35,20 +35,20 @@ data TruthTable = TTInp InputId
 
 type Secret = Int
 
-type Color = Bool
+{-type Color = Bool-}
+{-type WireLabel = (Secret, Color)-}
 
-type WireLabel = (Secret, Color)
+type WireLabel = Secret
 
 data WireLabelPair = WireLabelPair { wl_true  :: WireLabel
                                    , wl_false :: WireLabel
                                    } deriving (Eq, Ord)
 
 data GarbledGate = GarbledInput WireLabelPair
-                 | GarbledGate { gate_inLeft  :: Ref GarbledGate
-                               , gate_inRight :: Ref GarbledGate
-                               , gate_table   :: TruthTable
+                 | GarbledGate { gate_inpx  :: Ref GarbledGate
+                               , gate_inpy  :: Ref GarbledGate
+                               , gate_table :: [Secret]
                                } deriving (Eq, Ord)
-
 
 class CanHaveChildren c where
   children :: c -> [Ref c]
@@ -66,30 +66,24 @@ instance CanHaveChildren TruthTable where
 
 instance Eq TruthTable where
   TTInp a == TTInp b = a == b
-  TT {tt_inpx = ax, tt_inpy = ay, tt_f = fa} == TT {tt_inpx = bx, tt_inpy = by, tt_f = fb} =
-    ax == bx && ay == by &&
-    fa True  True  == fb True  True  &&
-    fa True  False == fb True  False &&
-    fa False True  == fb False True  &&
-    fa False False == fb False False
-  _ == _ = False
+  TTInp _ == TT {..} = False
+  TT {..} == TTInp _ = False
+  a == b = let init = tt_inpx a == tt_inpx b && tt_inpy a == tt_inpy b
+               xs   = zipWith (==) (truthVals (tt_f a)) (truthVals (tt_f b))
+           in foldl (&&) init xs
 
 instance Ord TruthTable where
   TTInp a <= TTInp b = a <= b
-  TT {tt_inpx = ax, tt_inpy = ay, tt_f = fa} <= TT {tt_inpx = bx, tt_inpy = by, tt_f = fb} =
-    ax <= bx || ay <= by ||
-    fa True  True  <= fb True  True  ||
-    fa True  False <= fb True  False ||
-    fa False True  <= fb False True  ||
-    fa False False <= fb False False
   TTInp _ <= TT {..} = True
   TT {..} <= TTInp _ = False
+  a <= b = let init = tt_inpx a <= tt_inpx b || tt_inpy a <= tt_inpy b
+               xs   = zipWith (<=) (truthVals (tt_f a)) (truthVals (tt_f b))
+           in foldl (||) init xs
 
 instance Show TruthTable where
   show (TTInp id) = show id
-  show (TT {tt_f = f}) = "TT" ++ bit (f True  True) ++ bit (f True  False)
-                              ++ bit (f False True) ++ bit (f False False)
-    where bit b = if b then "1" else "0"
+  show (TT {tt_f = f}) = "TT" ++ map bit (truthVals f)
+    where bit b = if b then '1' else '0'
 
 instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"
@@ -102,3 +96,7 @@ emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
 
 emptyEnv :: Env c
 emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
+
+-- teeny helpers
+truthVals :: (Bool -> Bool -> Bool) -> [Bool]
+truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]

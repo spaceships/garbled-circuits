@@ -7,8 +7,12 @@ module Garbled.Circuits.Util
   , bits2Word
   , internp
   , inputp
+  , writep
+  , lookp
   , lookupC
   , topoSort
+  , truthVals
+  , garbledGate
   )
 where
 
@@ -89,14 +93,14 @@ lookp ref = do
 
 lookupRef :: Ord c => c -> Program c -> Ref c
 lookupRef c prog = case M.lookup c dedup of
-    Nothing  -> error "[lookupC] no ref"
+    Nothing  -> error "[lookupRef] no ref"
     Just ref -> ref
   where
     dedup = env_dedup (prog_env prog)
 
 lookupC :: Ref c -> Program c -> c
 lookupC ref prog = case M.lookup ref deref of
-    Nothing -> error "[lookupRef] no c"
+    Nothing -> error "[lookupC] no c"
     Just c  -> c
   where
     deref = env_deref (prog_env prog)
@@ -118,3 +122,14 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
     mark ref = get >>= \(todo, done) -> do
       put (S.delete ref todo, S.insert ref done)
       tell [ref]
+
+--------------------------------------------------------------------------------
+-- garbled gate helpers
+
+garbledGate :: Ref GarbledGate -> Ref GarbledGate -> [Secret] -> GarbledGate
+garbledGate x y tab = GarbledGate { gate_inpx  = x
+                                  , gate_inpy  = y
+                                  , gate_table = tab
+                                  }
+
+

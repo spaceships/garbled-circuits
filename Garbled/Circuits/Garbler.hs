@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Garbled.Circuits.Garbler where
 
 import Garbled.Circuits.Types
@@ -15,73 +17,76 @@ import           System.Random
 -- TODO: get better random numbers!
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 
+data AllTheThings = AllTheThings { refMap  :: M.Map (Ref TruthTable) (Ref GarbledGate)
+                                 , pairMap :: M.Map (Ref GarbledGate) WireLabelPair
+                                 }
+
+type Garble = StateT (Program GarbledGate)
+                (RandT StdGen
+                  (ReaderT (Program TruthTable)
+                    (State AllTheThings)))
+
 enc :: Int -> Int -> Int -> Int
 enc k1 k2 m = hash (k1, k2, m)
 
-type GarbledCircuit = Program GarbledGate
+-- assumes children are already garbled! (use topoSort)
+garble :: Ref TruthTable -> Garble (Ref GarbledGate)
+garble tt_ref = lookupTT tt_ref >>= \case
+  TTInp id -> do
+    pair   <- new_wirelabels 
+    gg_ref <- inputp (GarbledInput pair)
+    allthethings tt_ref gg_ref pair
+    return gg_ref
+  tt -> do
+    xref   <- tt2gg_lookup (tt_inpx tt)
+    yref   <- tt2gg_lookup (tt_inpy tt)
+    x_wl   <- pairMap_lookup xref
+    y_wl   <- pairMap_lookup yref
+    out_wl <- new_wirelabels
+    let table = encode (tt_f tt) x_wl y_wl out_wl
+    gg_ref <- internp (garbledGate xref yref table)
+    allthethings tt_ref gg_ref out_wl
+    return gg_ref
 
-type Garble = ReaderT (Env TruthTable) (RandT StdGen (State GarbledCircuit)) -- a handy monad for garbling
+encode :: (Bool -> Bool -> Bool) 
+       -> WireLabelPair 
+       -> WireLabelPair 
+       -> WireLabelPair 
+       -> [Secret]
+encode f x_pair y_pair out_pair = 
+    [ enc (sel x x_pair) (sel y y_pair) (sel (f x y) out_pair)
+    | x <- [True, False]
+    , y <- [True, False]
+    ]
+  where 
+    sel b = if b then wl_true else wl_false
 
-runGarble :: Garble a
-          -> Env TruthTable
-          -> StdGen
-          -> GarbledCircuit
-runGarble f env gen = execState (evalRandT (runReaderT f env) gen) initialGC
-  where initialGC = Program [] [] emptyEnv
+--------------------------------------------------------------------------------
+-- many helpers
 
-garble :: Program TruthTable -> Garble ()
-garble prog = undefined
-    {-zipWithM_ inputPair (prog_inputs prog) inpIds-}
-    {-mapM_ construct topo-}
-    {-modify (\st -> st { gc_outputs = (prog_outputs prog)-}
-                      {-, gc_inputs  = (prog_inputs  prog)-}
-                      {-})-}
-  {-where-}
-    {-topo   = topoSort ttRefs prog-}
-    {-deref  = env_deref (prog_env prog)-}
-    {-inps   = map (flip violentLookup deref) (prog_inputs prog)-}
-    {-inpIds = map (\(Input id) -> id) inps-}
+new_wirelabels :: Garble WireLabelPair
+new_wirelabels = do
+  [x0, x1] <- getRandoms :: Garble [Secret]
+  return $ WireLabelPair { wl_true = x0, wl_false = x1 }
 
-construct = undefined
-{-construct :: Ref -> Garble ()-}
-{-construct ref = do-}
-  {-circ     <- lookupCirc ref-}
-  {-children <- mapM lookupGate (circRefs circ)-}
-  {-case circ of-}
-    {-Not _   -> putGate ref (flipLabel (head children)-}
-    {-And _ _ -> garbleAnd ref-}
+lookupTT :: Ref TruthTable -> Garble TruthTable
+lookupTT ref = asks (lookupC ref)
 
-flipLabel :: WireLabelPair -> WireLabelPair
-flipLabel p = WireLabelPair { wl_true  = wl_false p -- flip the true/false wire labels
-                            , wl_false = wl_true p  -- actually i don't think I can do this
-                            }                       -- maybe need to keep permute bits the same?
+tt2gg_lookup :: Ref TruthTable -> Garble (Ref GarbledGate)
+tt2gg_lookup ref = lift $ gets (M.lookup ref . refMap) >>= \case
+  Nothing   -> err "tt2gg_lookup" "no ref" [ref]
+  Just ref' -> return ref'
 
-{-construct :: Ref -> Garble WireLabelPair-}
-{-construct ref = return pair -}
-{-[>construct (Xor _ _) [x,y] = Data.Bits.xor x y<]-}
-{-[>construct (And _ _) [x,y] = x && y<]-}
-{-[>construct (Or _ _)  [x,y] = x || y<]-}
+pairMap_lookup :: Ref GarbledGate -> Garble WireLabelPair
+pairMap_lookup ref = lift $ gets (M.lookup ref . pairMap) >>= \case
+  Nothing   -> err "pairMap_lookup" "no ref" [ref]
+  Just pair -> return pair
 
-{-inputPair :: Ref -> InputId -> Garble WireLabelPair-}
-{-inputPair ref id = do-}
-  {-[x0, x1] <- getRandoms :: Garble [Int]-}
-  {-c        <- getRandom  :: Garble Color-}
-  {-let pair = WireLabelPair { wl_true = (x0, c), wl_false = (x1, not c) }-}
-  {-writep ref (GarbledInput pair)-}
-  {-return pair-}
+allthethings :: Ref TruthTable -> Ref GarbledGate -> WireLabelPair -> Garble ()
+allthethings reftt refgg pair = tt2gg_insert reftt refgg >> pairMap_insert refgg pair
 
+tt2gg_insert :: Ref TruthTable -> Ref GarbledGate -> Garble ()
+tt2gg_insert x y = lift $ modify (\st -> st { refMap = M.insert x y (refMap st) })
 
-{-lookupGate :: Ref -> Garble GarbledGate-}
-{-lookupGate ref = do-}
-  {-maybeGate <- M.lookup ref <$> gets gc_gates-}
-  {-case maybeGate of-}
-    {-Nothing -> error "[lookupGate] gate doesn't exist"-}
-    {-Just g  -> return g-}
-
-{-lookupCirc :: Ref -> Garble Circuit-}
-{-lookupCirc ref = do-}
-  {-deref <- asks env_deref-}
-  {-case M.lookup ref deref of-}
-    {-Nothing -> error "[lookupCirc] no ref"-}
-    {-Just c  -> return c-}
-
+pairMap_insert :: Ref GarbledGate -> WireLabelPair -> Garble ()
+pairMap_insert ref pair = lift $ modify (\st -> st { pairMap = M.insert ref pair (pairMap st) })
