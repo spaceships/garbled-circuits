@@ -33,23 +33,23 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
-type Secret = Int
-
 type Color = Bool
 
-type WireLabel = (Color, Secret)
+data Wirelabel = Wirelabel { wl_col :: Color
+                           , wl_val :: Int
+                           } deriving (Show, Eq, Ord)
 
-data WireLabelPair = WireLabelPair { wl_true  :: WireLabel
-                                   , wl_false :: WireLabel
-                                   } deriving (Eq, Ord)
+data WirelabelPair = WirelabelPair { wlp_true  :: Wirelabel
+                                   , wlp_false :: Wirelabel
+                                   } deriving (Show, Eq, Ord)
 
-type GarbledGateTable = [((Color,Color), WireLabel)]
+type GarbledGateTable = [((Color,Color), Wirelabel)]
 
-data GarbledGate = GarbledInput WireLabelPair
+data GarbledGate = GarbledInput InputId
                  | GarbledGate { gate_inpx  :: Ref GarbledGate
                                , gate_inpy  :: Ref GarbledGate
                                , gate_table :: GarbledGateTable
-                               } deriving (Eq, Ord)
+                               } deriving (Show, Eq, Ord)
 
 class CanHaveChildren c where
   children :: c -> [Ref c]
@@ -85,6 +85,10 @@ instance Show TruthTable where
   show (TTInp id) = show id
   show (TT {tt_f = f}) = "TT" ++ map bit (truthVals f)
     where bit b = if b then '1' else '0'
+
+instance CanHaveChildren GarbledGate where
+  children (GarbledInput _) = []
+  children g = [gate_inpx g, gate_inpy g]
 
 instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"

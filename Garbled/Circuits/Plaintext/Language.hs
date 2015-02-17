@@ -12,7 +12,7 @@ module Garbled.Circuits.Plaintext.Language
 where
 
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util (err, lookupC)
+import Garbled.Circuits.Util (evalProg, err, lookupC)
 
 import           Control.Monad.State
 import qualified Data.Bits
@@ -83,23 +83,10 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-type EvalEnv = Map (Ref Circ) Bool
-
 evalCirc :: Program Circ -> [Bool] -> [Bool]
-evalCirc prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+evalCirc prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
-
-    traverse :: Ref Circ -> State EvalEnv Bool
-    traverse ref = get >>= \precomputed ->
-      case M.lookup ref precomputed of
-        Just b  -> return b
-        Nothing -> do
-          let circ = lookupC ref prog
-          children <- mapM traverse (children circ)
-          let result = reconstruct circ children
-          modify (M.insert ref result)
-          return result
 
     reconstruct :: Circ -> [Bool] -> Bool
     reconstruct (Input id) [] = case M.lookup id inputs of

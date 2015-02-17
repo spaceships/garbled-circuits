@@ -5,7 +5,7 @@ module Garbled.Circuits.Plaintext.TruthTable
 where
 
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util (internp, inputp, lookupC, err)
+import Garbled.Circuits.Util (internp, inputp, lookupC, err, evalProg)
 
 import qualified Data.Map as M
 import           Control.Monad.State
@@ -109,23 +109,10 @@ circ2tt prog = prog'
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-type EvalEnv = Map (Ref TruthTable) Bool
-
 evalTT :: Program TruthTable -> [Bool] -> [Bool]
-evalTT prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+evalTT prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
-
-    traverse :: Ref TruthTable -> State EvalEnv Bool
-    traverse ref = get >>= \precomputed ->
-      case M.lookup ref precomputed of
-        Just b  -> return b
-        Nothing -> do
-          let table = lookupC ref prog
-          children <- mapM traverse (children table)
-          let result = reconstruct table children
-          modify (M.insert ref result)
-          return result
 
     reconstruct :: TruthTable -> [Bool] -> Bool
     reconstruct (TTInp id) [] = case M.lookup id inputs of
@@ -133,7 +120,6 @@ evalTT prog inps = reverse $ evalState (mapM traverse (prog_outputs prog)) M.emp
       Nothing -> err "reconstruct" "no input with id" [id]
     reconstruct (TT {tt_f = f}) [x,y] = f x y
     reconstruct _ _ = err "reconstruct" "bad pattern" [-1]
-
 
 --------------------------------------------------------------------------------
 -- helper functions

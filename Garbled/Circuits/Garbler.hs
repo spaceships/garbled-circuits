@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
 module Garbled.Circuits.Garbler where
 
@@ -6,11 +6,11 @@ import Garbled.Circuits.Types
 import Garbled.Circuits.Util
 import Garbled.Circuits.Plaintext.TruthTable
 
+import           Control.Applicative
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Bits (xor)
-import           Data.Functor
 import           Data.Hashable
 import qualified Data.Map as M
 import           System.Random
@@ -35,19 +35,36 @@ type Garble = StateT (Program GarbledGate)
                   (ReaderT (Program TruthTable)
                     (State AllTheThings)))
 
-data AllTheThings = AllTheThings { refMap  :: M.Map (Ref TruthTable) (Ref GarbledGate)
-                                 , pairMap :: M.Map (Ref GarbledGate) WireLabelPair
-                                 }
+data AllTheThings = AllTheThings { refMap   :: M.Map (Ref TruthTable) (Ref GarbledGate)
+                                 , pairMap  :: M.Map (Ref GarbledGate) WirelabelPair
+                                 } deriving (Show)
 
 --------------------------------------------------------------------------------
 -- garbling
+
+garbleTT :: Program TruthTable -> IO (Program GarbledGate, AllTheThings)
+garbleTT prog_tt = do
+    gen <- getStdGen
+    let ((outs, prog_gg), things) = runGarble gen (mapM garble topo)
+        prog_gg' = prog_gg { prog_outputs = outs }
+    return (prog_gg', things)
+  where
+    runAllThingsSt m = runState m (AllTheThings M.empty M.empty) -- (a, allthethings)
+    runTTReader    m = runReaderT m prog_tt -- a
+    runRand gen    m = evalRandT m gen -- a
+    runProgSt      m = runStateT m emptyProg -- (a, Program GarbledGate)
+
+    runGarble :: StdGen -> Garble a -> ((a, Program GarbledGate), AllTheThings)
+    runGarble gen g = runAllThingsSt (runTTReader (runRand gen (runProgSt g)))
+
+    topo = topoSort prog_tt
 
 -- assumes children are already garbled! (use topoSort)
 garble :: Ref TruthTable -> Garble (Ref GarbledGate)
 garble tt_ref = lookupTT tt_ref >>= \case
   TTInp id -> do
     pair   <- new_wirelabels
-    gg_ref <- inputp (GarbledInput pair)
+    gg_ref <- inputp (GarbledInput id)
     allthethings tt_ref gg_ref pair
     return gg_ref
   tt -> do
@@ -61,26 +78,58 @@ garble tt_ref = lookupTT tt_ref >>= \case
     allthethings tt_ref gg_ref out_wl
     return gg_ref
 
-new_wirelabels :: Garble WireLabelPair
+new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
-  [x0, x1] <- getRandoms :: Garble [Secret]
-  c        <- getRandom  :: Garble Color
-  return $ WireLabelPair { wl_true = (c, x0), wl_false = (not c, x1) }
+  x <- getRandom :: Garble Int
+  y <- getRandom :: Garble Int
+  c <- getRandom :: Garble Color
+  let wlt = Wirelabel { wl_col = c,     wl_val = x }
+      wlf = Wirelabel { wl_col = not c, wl_val = y }
+  return $ WirelabelPair { wlp_true = wlt, wlp_false = wlf }
 
 encode :: (Bool -> Bool -> Bool) -- the function defining a TruthTable
-       -> WireLabelPair          -- the x-wirelabel pair
-       -> WireLabelPair          -- the y-wirelabel pair
-       -> WireLabelPair          -- the out-wirelabel pair
-       -> [((Color, Color), WireLabel)]
+       -> WirelabelPair          -- the x-wirelabel pair
+       -> WirelabelPair          -- the y-wirelabel pair
+       -> WirelabelPair          -- the out-wirelabel pair
+       -> [((Color, Color), Wirelabel)]
 encode f x_pair y_pair out_pair = do
     a <- [True, False]
     b <- [True, False]
-    let (xcol, x) = sel a x_pair
-        (ycol, y) = sel b y_pair
-        (zcol, z) = sel (f a b) out_pair
-    return ((xcol,ycol), (zcol, enc x y z))
+    let x = sel a x_pair
+        y = sel b y_pair
+        z = sel (f a b) out_pair
+        out = z { wl_val = enc (wl_val x) (wl_val y) (wl_val z) }
+    return ((wl_col x, wl_col y), out)
+
+--------------------------------------------------------------------------------
+-- evaluator
+
+evalGG :: Program GarbledGate
+       -> [WirelabelPair]
+       -> [WirelabelPair]
+       -> [Bool]
+       -> [Bool]
+evalGG prog inpwlps outwlps inps = map ungarble outmap
   where
-    sel b = if b then wl_true else wl_false
+    result = evalProg reconstruct prog inpwires :: [Wirelabel]
+    outmap = zip result outwlps :: [(Wirelabel, WirelabelPair)]
+
+    ungarble :: (Wirelabel, WirelabelPair) -> Bool
+    ungarble (wl, wlp) = if wlp_true  wlp == wl then True  else
+                         if wlp_false wlp == wl then False else
+                         err "ungarble" "unknown wirelabel" [wl]
+
+    inpwires = sel <$> inps <*> inpwlps
+    inputs   = zip (map InputId [0..]) inpwires
+
+    reconstruct :: GarbledGate -> [Wirelabel] -> Wirelabel
+    reconstruct (GarbledInput id) [] = case lookup id inputs of
+      Nothing -> err "reconstruct" "no input wire with id" [id]
+      Just wl -> wl
+    reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
+      Nothing -> err "reconstruct" "no color matching" [wl_col x, wl_col y]
+      Just z  -> z { wl_val = dec (wl_val y) (wl_val x) (wl_val z) }
+    reconstruct _ _ = err "reconstruct" "unknown pattern" [-1]
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -93,16 +142,26 @@ tt2gg_lookup ref = lift $ gets (M.lookup ref . refMap) >>= \case
   Nothing   -> err "tt2gg_lookup" "no ref" [ref]
   Just ref' -> return ref'
 
-pairMap_lookup :: Ref GarbledGate -> Garble WireLabelPair
+pairMap_lookup :: Ref GarbledGate -> Garble WirelabelPair
 pairMap_lookup ref = lift $ gets (M.lookup ref . pairMap) >>= \case
   Nothing   -> err "pairMap_lookup" "no ref" [ref]
   Just pair -> return pair
 
-allthethings :: Ref TruthTable -> Ref GarbledGate -> WireLabelPair -> Garble ()
-allthethings reftt refgg pair = tt2gg_insert reftt refgg >> pairMap_insert refgg pair
+allthethings :: Ref TruthTable
+             -> Ref GarbledGate
+             -> WirelabelPair
+             -> Garble ()
+allthethings reftt refgg pair = do
+  tt2gg_insert reftt refgg
+  pairMap_insert refgg pair
 
 tt2gg_insert :: Ref TruthTable -> Ref GarbledGate -> Garble ()
-tt2gg_insert x y = lift $ modify (\st -> st { refMap = M.insert x y (refMap st) })
+tt2gg_insert x y =
+  lift $ modify (\st -> st { refMap = M.insert x y (refMap st) })
 
-pairMap_insert :: Ref GarbledGate -> WireLabelPair -> Garble ()
-pairMap_insert ref pair = lift $ modify (\st -> st { pairMap = M.insert ref pair (pairMap st) })
+pairMap_insert :: Ref GarbledGate -> WirelabelPair -> Garble ()
+pairMap_insert ref pair =
+  lift $ modify (\st -> st { pairMap = M.insert ref pair (pairMap st) })
+
+sel :: Bool -> WirelabelPair -> Wirelabel
+sel b = if b then wlp_true else wlp_false

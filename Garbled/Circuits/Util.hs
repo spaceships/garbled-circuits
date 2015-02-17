@@ -2,17 +2,19 @@
 
 module Garbled.Circuits.Util
   ( bindM2
-  , err
-  , word2Bits
   , bits2Word
-  , internp
+  , err
+  , evalProg
+  , garbledGate
   , inputp
-  , writep
+  , internp
   , lookp
   , lookupC
   , topoSort
   , truthVals
-  , garbledGate
+  , word2Bits
+  , writep
+  , violentLookup
   )
 where
 
@@ -123,6 +125,25 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
       put (S.delete ref todo, S.insert ref done)
       tell [ref]
 
+evalProg :: CanHaveChildren c 
+         => (c -> [b] -> b)
+         -> Program c 
+         -> [b] 
+         -> [b]
+evalProg construct prog inps = 
+    reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+  where
+    inputs = M.fromList (zip (map InputId [0..]) inps)
+    traverse ref = get >>= \precomputed ->
+      case M.lookup ref precomputed of
+        Just b  -> return b
+        Nothing -> do
+          let c = lookupC ref prog
+          kids <- mapM traverse (children c)
+          let result = construct c kids
+          modify (M.insert ref result)
+          return result
+
 --------------------------------------------------------------------------------
 -- garbled gate helpers
 
@@ -133,3 +154,10 @@ garbledGate x y tab = GarbledGate { gate_inpx  = x
                                   }
 
 
+--------------------------------------------------------------------------------
+-- evil helpers
+
+violentLookup :: Ord k => k -> Map k v -> v
+violentLookup k m = case M.lookup k m of
+  Nothing -> err "violentLookup" "OOPS" [-1]
+  Just  v -> v

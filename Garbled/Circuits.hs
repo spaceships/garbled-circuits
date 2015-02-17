@@ -4,7 +4,7 @@ module Garbled.Circuits where
 
 import Garbled.Circuits.Garbler
 import Garbled.Circuits.Types
-import Garbled.Circuits.Util (bindM2, err, bits2Word, word2Bits)
+import Garbled.Circuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
 import Garbled.Circuits.Plaintext.Language
 import Garbled.Circuits.Plaintext.TruthTable
 
@@ -56,3 +56,13 @@ eval_8BitAdderTT :: Word8 -> Word8 -> Word8
 eval_8BitAdderTT x y = bits2Word result
   where
     result = evalTT (circ2tt circ_8BitAdder) (word2Bits x ++ word2Bits y)
+
+-- convert to GarbledGate and use GG evaluator
+eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8
+eval_8BitAdderGG x y = do
+    let tt_prog = circ2tt circ_8BitAdder
+    (prog, things) <- garbleTT tt_prog
+    let inpPairs = map (flip violentLookup $ pairMap things) (prog_inputs prog)
+        outPairs = map (flip violentLookup $ pairMap things) (prog_outputs prog)
+        result   = evalGG prog inpPairs outPairs (word2Bits x ++ word2Bits y)
+    return (bits2Word result)
