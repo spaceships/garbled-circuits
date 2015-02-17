@@ -30,13 +30,15 @@ dec = enc
 --------------------------------------------------------------------------------
 -- data types for garbling
 
+type PairMap = M.Map (Ref GarbledGate) WirelabelPair
+
 type Garble = StateT (Program GarbledGate)
                 (RandT StdGen
                   (ReaderT (Program TruthTable)
                     (State AllTheThings)))
 
 data AllTheThings = AllTheThings { refMap   :: M.Map (Ref TruthTable) (Ref GarbledGate)
-                                 , pairMap  :: M.Map (Ref GarbledGate) WirelabelPair
+                                 , pairMap  :: PairMap
                                  } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -105,22 +107,17 @@ encode f x_pair y_pair out_pair = do
 -- evaluator
 
 evalGG :: Program GarbledGate
-       -> [WirelabelPair]
-       -> [WirelabelPair]
+       -> PairMap
        -> [Bool]
        -> [Bool]
-evalGG prog inpwlps outwlps inps = map ungarble outmap
+evalGG prog pairMap inps = map ungarble outmap
   where
-    result = evalProg reconstruct prog inpwires :: [Wirelabel]
-    outmap = zip result outwlps :: [(Wirelabel, WirelabelPair)]
-
-    ungarble :: (Wirelabel, WirelabelPair) -> Bool
-    ungarble (wl, wlp) = if wlp_true  wlp == wl then True  else
-                         if wlp_false wlp == wl then False else
-                         err "ungarble" "unknown wirelabel" [wl]
-
+    inpwlps  = map (flip violentLookup pairMap) (prog_inputs prog)
+    outwlps  = map (flip violentLookup pairMap) (prog_outputs prog)
     inpwires = sel <$> inps <*> inpwlps
     inputs   = zip (map InputId [0..]) inpwires
+    result   = evalProg reconstruct prog inpwires :: [Wirelabel]
+    outmap   = zip result outwlps                 :: [(Wirelabel, WirelabelPair)]
 
     reconstruct :: GarbledGate -> [Wirelabel] -> Wirelabel
     reconstruct (GarbledInput id) [] = case lookup id inputs of
@@ -130,6 +127,11 @@ evalGG prog inpwlps outwlps inps = map ungarble outmap
       Nothing -> err "reconstruct" "no color matching" [wl_col x, wl_col y]
       Just z  -> z { wl_val = dec (wl_val y) (wl_val x) (wl_val z) }
     reconstruct _ _ = err "reconstruct" "unknown pattern" [-1]
+
+    ungarble :: (Wirelabel, WirelabelPair) -> Bool
+    ungarble (wl, wlp) = if wlp_true  wlp == wl then True  else
+                         if wlp_false wlp == wl then False else
+                         err "ungarble" "unknown wirelabel" [wl]
 
 --------------------------------------------------------------------------------
 -- helpers

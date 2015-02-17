@@ -13,8 +13,8 @@ import Data.Word
 
 -- circuit language - done
 -- intermediate TruthTable representation - done
--- garbled circuit representation - in progress
--- garbling
+-- garbled circuit representation - done
+-- garbling - in progress - add testing
 -- ot
 -- evaluation
 
@@ -62,7 +62,5 @@ eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8
 eval_8BitAdderGG x y = do
     let tt_prog = circ2tt circ_8BitAdder
     (prog, things) <- garbleTT tt_prog
-    let inpPairs = map (flip violentLookup $ pairMap things) (prog_inputs prog)
-        outPairs = map (flip violentLookup $ pairMap things) (prog_outputs prog)
-        result   = evalGG prog inpPairs outPairs (word2Bits x ++ word2Bits y)
+    let result = evalGG prog (pairMap things) (word2Bits x ++ word2Bits y)
     return (bits2Word result)
