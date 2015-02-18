@@ -7,6 +7,7 @@ where
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util (internp, inputp, lookupC, err, evalProg)
 
+import           Data.List (nub)
 import qualified Data.Map as M
 import           Control.Monad.State
 import           Data.Bits (xor)

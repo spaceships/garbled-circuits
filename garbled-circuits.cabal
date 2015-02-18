@@ -29,6 +29,7 @@ library
                       ,mtl 
                       ,hashable 
                       ,random
+                      ,groom
                       ,MonadRandom
   -- hs-source-dirs:      
   ghc-options:        -fwarn-incomplete-patterns

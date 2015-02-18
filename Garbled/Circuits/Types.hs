@@ -3,8 +3,10 @@
 module Garbled.Circuits.Types where
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 type Map = M.Map
+type Set = S.Set
 
 newtype Ref a = Ref Int deriving (Enum, Ord, Eq)
 
@@ -22,7 +24,7 @@ data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
                  } deriving (Show)
 
-data Program c = Program { prog_inputs  :: [Ref c]
+data Program c = Program { prog_inputs  :: Set (Ref c)
                          , prog_outputs :: [Ref c]
                          , prog_env     :: Env c
                          } deriving (Show)
@@ -97,7 +99,7 @@ instance Show InputId where
   show (InputId id) = "in" ++ show id
 
 emptyProg :: Program c
-emptyProg = Program { prog_inputs = [], prog_outputs = [], prog_env = emptyEnv }
+emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }
 
 emptyEnv :: Env c
 emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }

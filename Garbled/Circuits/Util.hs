@@ -5,7 +5,6 @@ module Garbled.Circuits.Util
   , bits2Word
   , err
   , evalProg
-  , garbledGate
   , inputp
   , internp
   , lookp
@@ -20,8 +19,11 @@ where
 
 import Garbled.Circuits.Types
 
-import           Control.Monad.State
-import           Control.Monad.Writer
+import Prelude hiding (mapM)
+
+import           Data.Traversable
+import           Control.Monad.State hiding (mapM)
+import           Control.Monad.Writer hiding (mapM)
 import           Data.Bits ((.&.))
 import qualified Data.Map as M
 import           Data.Word
@@ -71,11 +73,11 @@ internp circ = do
 inputp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 inputp inp = do
   ref <- internp inp
-  modify (\p -> p { prog_inputs = ref : prog_inputs p })
+  modify (\p -> p { prog_inputs = S.insert ref (prog_inputs p) })
   return ref
 
 outputp :: (Ord c, MonadState (Program c) m) => Ref c -> m ()
-outputp ref = modify (\p -> p { prog_outputs = ref : prog_outputs p })
+outputp ref = modify (\p -> p { prog_outputs = prog_outputs p ++ [ref] })
 
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()
 writep ref circ = do
@@ -108,21 +110,43 @@ lookupC ref prog = case M.lookup ref deref of
     deref = env_deref (prog_env prog)
 
 -- yay polymorphic topoSort
-type Set = S.Set
-type DFS c = WriterT [Ref c] (State (Set (Ref c), Set (Ref c)))
+data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
+                     , dfs_done :: Set (Ref c) 
+                     }
+
+type DFS c = WriterT [Ref c] (State (DFSSt c))
 
 topoSort :: CanHaveChildren c => Program c -> [Ref c]
 topoSort prog = snd $ evalState (runWriterT loop) initialState
   where
-    deref        = env_deref (prog_env prog)
-    initialState = (S.fromList (M.keys deref), S.empty)
-    loop = next >>= \case Just ref -> visit ref; Nothing -> return ()
-    visit ref = let circ = lookupC ref prog
-                in mapM_ visit (children circ) >> mark ref
-    next = gets fst >>= \todo -> return $
-      if S.size todo > 0 then Just (S.findMax todo) else Nothing
-    mark ref = get >>= \(todo, done) -> do
-      put (S.delete ref todo, S.insert ref done)
+    deref = env_deref (prog_env prog)
+
+    initialState = DFSSt { dfs_todo = S.fromList (M.keys deref)
+                         , dfs_done = S.empty
+                         }
+
+    loop = next >>= \case 
+      Just ref -> visit ref
+      Nothing  -> return ()
+
+    visit ref = do
+      let circ = lookupC ref prog
+      mapM_ visit (children circ) 
+      mark ref
+
+    next :: DFS c (Maybe (Ref c))
+    next = do
+      todo <- gets dfs_todo 
+      if S.size todo > 0 then 
+        return $ Just (S.findMax todo) 
+      else 
+        return $ Nothing
+
+    mark ref = do
+      st <- get
+      put st { dfs_todo = S.delete ref (dfs_todo st)
+             , dfs_done = S.insert ref (dfs_done st)
+             }
       tell [ref]
 
 evalProg :: CanHaveChildren c 
@@ -145,19 +169,9 @@ evalProg construct prog inps =
           return result
 
 --------------------------------------------------------------------------------
--- garbled gate helpers
-
-garbledGate :: Ref GarbledGate -> Ref GarbledGate -> GarbledGateTable -> GarbledGate
-garbledGate x y tab = GarbledGate { gate_inpx  = x
-                                  , gate_inpy  = y
-                                  , gate_table = tab
-                                  }
-
-
---------------------------------------------------------------------------------
 -- evil helpers
 
-violentLookup :: Ord k => k -> Map k v -> v
-violentLookup k m = case M.lookup k m of
-  Nothing -> err "violentLookup" "OOPS" [-1]
+violentLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
+violentLookup m k = case M.lookup k m of
+  Nothing -> err "violentLookup" "OOPS" [m]
   Just  v -> v

@@ -17,9 +17,10 @@ import Garbled.Circuits.Util (evalProg, err, lookupC)
 import           Control.Monad.State
 import qualified Data.Bits
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 data CircSt = CircSt { st_nextRef     :: Ref Circ
-                     , st_inputs      :: [Ref Circ]
+                     , st_inputs      :: S.Set (Ref Circ)
                      , st_nextInputId :: InputId
                      , st_env         :: Env Circ
                      }
@@ -35,7 +36,7 @@ buildCirc c = Program { prog_inputs  = st_inputs st
     (outs, st) = runState c emptySt
     emptySt    = CircSt { st_nextRef     = Ref 0
                         , st_nextInputId = InputId 0
-                        , st_inputs      = []
+                        , st_inputs      = S.empty
                         , st_env         = emptyEnv
                         }
 
@@ -105,7 +106,7 @@ evalCirc prog inps = evalProg reconstruct prog inps
 c_input :: CircBuilder (Ref Circ)
 c_input = do id  <- nextInputId
              ref <- intern (Input id)
-             modify (\st -> st { st_inputs = st_inputs st ++ [ref] })
+             modify (\st -> st { st_inputs = S.insert ref (st_inputs st) })
              return ref
 
 c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)

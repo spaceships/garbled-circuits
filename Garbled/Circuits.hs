@@ -8,6 +8,7 @@ import Garbled.Circuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
 import Garbled.Circuits.Plaintext.Language
 import Garbled.Circuits.Plaintext.TruthTable
 
+import Control.Applicative
 import Control.Monad
 import Data.Word
 
@@ -17,6 +18,25 @@ import Data.Word
 -- garbling - in progress - add testing
 -- ot
 -- evaluation
+
+--------------------------------------------------------------------------------
+-- garble
+
+garble :: Program Circ -> IO (Program GarbledGate, AllTheThings)
+garble = tt2gg . circ2tt
+
+--------------------------------------------------------------------------------
+-- id example
+
+circ_and :: Program Circ
+circ_and = buildCirc $ do
+  inp0 <- c_input
+  inp1 <- c_input
+  out  <- c_and inp0 inp1
+  return [out]
+
+eval_andGG :: Bool -> Bool -> IO [Bool]
+eval_andGG x y = evalGG [x,y] <$> garble circ_and
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example
@@ -59,8 +79,4 @@ eval_8BitAdderTT x y = bits2Word result
 
 -- convert to GarbledGate and use GG evaluator
 eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8
-eval_8BitAdderGG x y = do
-    let tt_prog = circ2tt circ_8BitAdder
-    (prog, things) <- garbleTT tt_prog
-    let result = evalGG prog (pairMap things) (word2Bits x ++ word2Bits y)
-    return (bits2Word result)
+eval_8BitAdderGG x y = bits2Word . evalGG (word2Bits x ++ word2Bits y) <$> garble circ_8BitAdder
