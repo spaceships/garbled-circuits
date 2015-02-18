@@ -24,7 +24,7 @@ import Prelude hiding (mapM)
 import           Data.Traversable
 import           Control.Monad.State hiding (mapM)
 import           Control.Monad.Writer hiding (mapM)
-import           Data.Bits ((.&.))
+import           Data.Bits
 import qualified Data.Map as M
 import           Data.Word
 import qualified Data.Set as S
@@ -39,8 +39,8 @@ err :: Show s => String -> String -> [s] -> a
 err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
 
 -- returns a little-endian list of bits
-word2Bits :: Word8 -> [Bool]
-word2Bits x = map (bitAnd x) (take 8 pow2s)
+word2Bits :: (Num b, Ord b, Bits b) => b -> [Bool]
+word2Bits x = map (bitAnd x) (take (bitSize x) pow2s)
   where
     bitAnd a b = a .&. b > 0
 
@@ -49,7 +49,8 @@ bits2Word bs = sum $ zipWith select bs pow2s
   where
     select b x = if b then x else 0
 
-pow2s = [ 2 ^ x | x <- [0..] ]
+pow2s :: (Num b, Bits b) => [b]
+pow2s = [ shift 1 x | x <- [0..] ]
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program
