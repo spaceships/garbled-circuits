@@ -59,12 +59,25 @@ addBits xs ys = do
       builder xs ys c' (out:outs)
     builder xs ys _ _ = err "builder" "lists of unequal length" [xs,ys]
 
-circ_8BitAdder :: Program Circ
-circ_8BitAdder = buildCirc $ do
-    inp1      <- replicateM 8 c_input
-    inp2      <- replicateM 8 c_input
+circ_NBitAdder :: Int -> Program Circ
+circ_NBitAdder n = buildCirc $ do
+    inp1      <- replicateM n c_input
+    inp2      <- replicateM n c_input
     (outs, _) <- addBits inp1 inp2
     return outs
+
+circ_8BitAdder :: Program Circ
+circ_8BitAdder = circ_NBitAdder 8
+
+eval_2BitAdder :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
+eval_2BitAdder (x0,x1) (y0,y1) = result
+  where
+    result = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
+
+eval_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
+eval_2BitAdderGG (x0,x1) (y0,y1) = result
+  where
+    result = evalGG [x0,x1,y0,y1] <$> (garble (circ_NBitAdder 2)) 
 
 eval_8BitAdder :: Word8 -> Word8 -> Word8
 eval_8BitAdder x y = bits2Word result

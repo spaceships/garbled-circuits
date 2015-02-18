@@ -6,6 +6,7 @@ import Garbled.Circuits.Types
 import Garbled.Circuits.Util
 import Garbled.Circuits.Plaintext.TruthTable
 
+import Data.Maybe 
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -60,9 +61,6 @@ tt2gg prog_tt = do
     runGarble gen g = runAllThingsSt (runTTReader (runRand gen (runProgSt g)))
 
 
-    {-topo = topoSort prog_tt-}
-
---todo: basecase - already garbled tt_ref
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
 garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case -- if the TruthTable already is garbled
   Just ref -> return ref                          -- return a ref to it
@@ -73,21 +71,20 @@ garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case -- if the TruthTable already i
       allthethings tt_ref gg_ref pair             --   keep track of our work in the state
       return gg_ref                               --   return the gate ref
     tt -> do                                      -- otherwise:
-      maybeXref <- tt2gg_lookup (tt_inpx tt)      -- check if the left arg has been garbled
-      xref <- case maybeXref of                  
-        Nothing  -> garbleGate (tt_inpx tt)       --   if it hasn't, garble it
-        Just ref -> return ref                    --   return the new ref
-      maybeYref <- tt2gg_lookup (tt_inpy tt)
-      yref <- case maybeYref of
-        Nothing  -> garbleGate (tt_inpy tt)
-        Just ref -> return ref
-      x_wl   <- pairs_lookup xref
-      y_wl   <- pairs_lookup yref
+      xref <- maybeRecurse (tt_inpx tt)
+      yref <- maybeRecurse (tt_inpy tt)
+      x_wl <- pairs_lookup xref
+      y_wl <- pairs_lookup yref
       out_wl <- new_wirelabels
       let table = encode (tt_f tt) x_wl y_wl out_wl
       gg_ref <- internp (GarbledGate xref yref table)
       allthethings tt_ref gg_ref out_wl
       return gg_ref
+
+maybeRecurse :: Ref TruthTable -> Garble (Ref GarbledGate)
+maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
+    Nothing     -> garbleGate tt_ref
+    Just gg_ref -> return gg_ref
 
 new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
@@ -168,7 +165,7 @@ pairs_insert ref pair =
   lift $ modify (\st -> st { things_pairs = M.insert ref pair (things_pairs st) })
 
 truth_insert :: Wirelabel -> Bool -> Garble ()
-truth_insert l b = 
+truth_insert l b =
   lift $ modify (\st -> st { things_truth = M.insert l b (things_truth st) })
 
 sel :: Bool -> WirelabelPair -> Wirelabel
