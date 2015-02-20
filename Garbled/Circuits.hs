@@ -36,7 +36,7 @@ circ_and = buildCirc $ do
   return [out]
 
 eval_andGG :: Bool -> Bool -> IO [Bool]
-eval_andGG x y = evalGG [x,y] <$> garble circ_and
+eval_andGG x y = evalGG [x,y] =<< garble circ_and
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example
@@ -69,27 +69,28 @@ circ_NBitAdder n = buildCirc $ do
 circ_8BitAdder :: Program Circ
 circ_8BitAdder = circ_NBitAdder 8
 
-eval_2BitAdder :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
-eval_2BitAdder (x0,x1) (y0,y1) = result
-  where
-    result = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
+eval_2BitAdder :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
+eval_2BitAdder (x0,x1) (y0,y1) = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
 
 eval_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
-eval_2BitAdderGG (x0,x1) (y0,y1) = result
-  where
-    result = evalGG [x0,x1,y0,y1] <$> (garble (circ_NBitAdder 2)) 
+eval_2BitAdderGG (x0,x1) (y0,y1) = do
+  gg <- garble (circ_NBitAdder 2)
+  evalGG [x0,x1,y0,y1] gg
 
-eval_8BitAdder :: Word8 -> Word8 -> Word8
-eval_8BitAdder x y = bits2Word result
+eval_8BitAdder :: Word8 -> Word8 -> IO Word8
+eval_8BitAdder x y = bits2Word <$> result
   where
     result = evalCirc circ_8BitAdder (word2Bits x ++ word2Bits y)
 
 -- convert to TruthTable and use TruthTable evaluator
-eval_8BitAdderTT :: Word8 -> Word8 -> Word8
-eval_8BitAdderTT x y = bits2Word result
+eval_8BitAdderTT :: Word8 -> Word8 -> IO Word8
+eval_8BitAdderTT x y = bits2Word <$> result
   where
     result = evalTT (circ2tt circ_8BitAdder) (word2Bits x ++ word2Bits y)
 
 -- convert to GarbledGate and use GG evaluator
 eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8
-eval_8BitAdderGG x y = bits2Word . evalGG (word2Bits x ++ word2Bits y) <$> garble circ_8BitAdder
+eval_8BitAdderGG x y = do
+    gg <- garble circ_8BitAdder
+    result <- evalGG (word2Bits x ++ word2Bits y) gg
+    return (bits2Word result)

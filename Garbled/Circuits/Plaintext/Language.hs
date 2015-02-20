@@ -84,20 +84,20 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-evalCirc :: Program Circ -> [Bool] -> [Bool]
+evalCirc :: Program Circ -> [Bool] -> IO [Bool]
 evalCirc prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
-    reconstruct :: Circ -> [Bool] -> Bool
+    reconstruct :: Circ -> [Bool] -> IO Bool
     reconstruct (Input id) [] = case M.lookup id inputs of
-      Just b  -> b
+      Just b  -> return b
       Nothing -> err "reconstruct" "no input with id" [id]
-    reconstruct (Const x) []    = x
-    reconstruct (Not _)   [x]   = Prelude.not x
-    reconstruct (Xor _ _) [x,y] = Data.Bits.xor x y
-    reconstruct (And _ _) [x,y] = x && y
-    reconstruct (Or _ _)  [x,y] = x || y
+    reconstruct (Const x) []    = return x
+    reconstruct (Not _)   [x]   = return $ Prelude.not x
+    reconstruct (Xor _ _) [x,y] = return $ Data.Bits.xor x y
+    reconstruct (And _ _) [x,y] = return $ x && y
+    reconstruct (Or _ _)  [x,y] = return $ x || y
     reconstruct _ _ = err "reconstruct" "unrecognized pattern" [-1]
 
 --------------------------------------------------------------------------------

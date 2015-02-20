@@ -11,6 +11,7 @@ module Garbled.Circuits.Util
   , lookupC
   , topoSort
   , truthVals
+  , traverse
   , word2Bits
   , writep
   , violentLookup
@@ -19,12 +20,10 @@ where
 
 import Garbled.Circuits.Types
 
-import Prelude hiding (mapM)
-
-import           Data.Traversable
-import           Control.Monad.State hiding (mapM)
-import           Control.Monad.Writer hiding (mapM)
+import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Bits
+import           Data.Functor
 import qualified Data.Map as M
 import           Data.Word
 import qualified Data.Set as S
@@ -117,6 +116,7 @@ data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
 
 type DFS c = WriterT [Ref c] (State (DFSSt c))
 
+-- TODO: this is broken
 topoSort :: CanHaveChildren c => Program c -> [Ref c]
 topoSort prog = snd $ evalState (runWriterT loop) initialState
   where
@@ -151,23 +151,26 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
       tell [ref]
 
 evalProg :: CanHaveChildren c 
-         => (c -> [b] -> b)
+         => (c -> [b] -> IO b)
          -> Program c 
          -> [b] 
-         -> [b]
+         -> IO [b]
 evalProg construct prog inps = 
-    reverse $ evalState (mapM traverse (prog_outputs prog)) M.empty
+    reverse <$> evalStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
-    traverse ref = get >>= \precomputed ->
-      case M.lookup ref precomputed of
-        Just b  -> return b
-        Nothing -> do
-          let c = lookupC ref prog
-          kids <- mapM traverse (children c)
-          let result = construct c kids
-          modify (M.insert ref result)
-          return result
+
+traverse :: (MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
+         => (c -> [b] -> IO b) -> Program c -> Ref c -> m b
+traverse f prog ref = get >>= \precomputed ->
+  case M.lookup ref precomputed of
+    Just b  -> return b
+    Nothing -> do
+      let c = lookupC ref prog
+      kids <- mapM (traverse f prog) (children c)
+      result <- liftIO $ f c kids
+      modify (M.insert ref result)
+      return result
 
 --------------------------------------------------------------------------------
 -- evil helpers

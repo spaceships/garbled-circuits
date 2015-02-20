@@ -6,7 +6,8 @@ import Garbled.Circuits.Types
 import Garbled.Circuits.Util
 import Garbled.Circuits.Plaintext.TruthTable
 
-import Data.Maybe 
+import           Data.Functor 
+import           Data.Maybe 
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -112,22 +113,23 @@ encode f x_pair y_pair out_pair = do
 --------------------------------------------------------------------------------
 -- evaluator
 
-evalGG :: [Bool] -> (Program GarbledGate, AllTheThings) -> [Bool]
-evalGG inps (prog, things) = map ungarble result
+evalGG :: [Bool] -> (Program GarbledGate, AllTheThings) -> IO [Bool]
+evalGG inps (prog, things) = map ungarble <$> result
   where
-    inpwlps  = map (violentLookup $ things_pairs things) (S.toList $ prog_inputs prog)
+    inpwlps  = map (violentLookup $ things_pairs things) 
+                   (S.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-    result = evalProg reconstruct prog inpwires :: [Wirelabel]
+    result = evalProg reconstruct prog inpwires :: IO [Wirelabel]
 
-    reconstruct :: GarbledGate -> [Wirelabel] -> Wirelabel
+    reconstruct :: GarbledGate -> [Wirelabel] -> IO Wirelabel
     reconstruct (GarbledInput id) [] = case lookup id inputs of
       Nothing -> err "reconstruct" "no input wire with id" [id]
-      Just wl -> wl
+      Just wl -> return wl
     reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
       Nothing -> err "reconstruct" "no color matching" [wl_col x, wl_col y]
-      Just z  -> z { wl_val = dec (wl_val x) (wl_val y) (wl_val z) }
+      Just z  -> return z { wl_val = dec (wl_val x) (wl_val y) (wl_val z) }
     reconstruct _ _ = err "reconstruct" "unknown pattern" [-1]
 
     ungarble :: Wirelabel -> Bool
