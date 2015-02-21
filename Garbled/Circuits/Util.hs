@@ -34,9 +34,6 @@ import qualified Data.Set as S
 bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
 bindM2 f a b = do x <- a; y <- b; f x y
 
-err :: Show s => String -> String -> [s] -> a
-err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
-
 -- returns a little-endian list of bits
 word2Bits :: (Num b, Ord b, Bits b) => b -> [Bool]
 word2Bits x = map (bitAnd x) (take (bitSize x) pow2s)
@@ -150,30 +147,54 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
              }
       tell [ref]
 
-evalProg :: CanHaveChildren c 
-         => (c -> [b] -> IO b)
-         -> Program c 
-         -> [b] 
-         -> IO [b]
-evalProg construct prog inps = 
-    reverse <$> evalStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty
-  where
-    inputs = M.fromList (zip (map InputId [0..]) inps)
+evalProg :: (Show b, CanHaveChildren c)
+         => (c -> [b] -> IO b) -> Program c -> [b] -> IO [b]
+evalProg construct prog inps = do
+#ifdef DEBUG
+    let inputs = zip (map InputId [0..]) inps
+    forM inputs $ \(id, inp) -> reportl ("[evalProg] " ++ show id ++ ": " ++ show inp)
+#endif
+    resultMap <- execStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty
+    let outputs = map (\ref -> (ref, violentLookup resultMap ref)) (prog_outputs prog)
+#ifdef DEBUG
+    forM outputs $ \(ref, res) -> reportl ("[evalProg] output " ++ show ref ++ ": " ++ show res)
+#endif
+    return (reverse $ snd <$> outputs)
 
-traverse :: (MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
+traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
          => (c -> [b] -> IO b) -> Program c -> Ref c -> m b
-traverse f prog ref = get >>= \precomputed ->
+traverse f prog ref = do
+  precomputed <- get
   case M.lookup ref precomputed of
-    Just b  -> return b
+    Just b  -> do 
+#ifdef DEBUG
+      reportl ("[traverse" ++ show ref ++"] precomputed: " ++ show b)
+#endif
+      return b
     Nothing -> do
       let c = lookupC ref prog
+#ifdef DEBUG
+      reportl ("[traverse" ++ show ref ++"] recursing on children: " ++ show (children c))
+#endif
       kids <- mapM (traverse f prog) (children c)
       result <- liftIO $ f c kids
       modify (M.insert ref result)
+#ifdef DEBUG
+      reportl ("[traverse" ++ show ref ++"] result: " ++ show result)
+#endif
       return result
 
 --------------------------------------------------------------------------------
 -- evil helpers
+
+report :: MonadIO m => String -> m ()
+report = liftIO . putStr
+
+reportl :: MonadIO m => String -> m ()
+reportl = liftIO . putStrLn
+
+err :: Show s => String -> String -> [s] -> a
+err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
 
 violentLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
 violentLookup m k = case M.lookup k m of
