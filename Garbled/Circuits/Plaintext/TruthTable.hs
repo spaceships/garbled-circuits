@@ -43,7 +43,7 @@ circ2tt prog = prog'
       where
         check (Right ref)      = ref
         check (Left (UId ref)) = ref
-        check (Left x)         = err "check" "non binary top level gate" [x]
+        check (Left x)         = err "check" ("non binary top level gate" ++ show x)
 
     --return a circ if it is a unary gate in order to fold it into its parent
     trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
@@ -78,7 +78,7 @@ circ2tt prog = prog'
         OXor -> UConst $ b1 `xor` b2
         OAnd -> UConst $ b1 && b2
         OOr  -> UConst $ b1 || b2
-        _    -> err "constructBin" "unrecognized operation" [op]
+        _    -> err "constructBin" ("unrecognized operation: " ++ show op)
     -- UNot children: tricky
     constructBin op (Right x) (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
     constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
@@ -96,7 +96,7 @@ circ2tt prog = prog'
     create OXor x y = tt_xor { tt_inpx = x, tt_inpy = y }
     create OAnd x y = tt_and { tt_inpx = x, tt_inpy = y }
     create OOr  x y = tt_or  { tt_inpx = x, tt_inpy = y }
-    create op x y = err "create" "unrecognized operation" [op]
+    create op x y = err "create" ("unrecognized operation" ++ show op)
 
     foldConst :: Operation -> Bool -> Ref TruthTable -> NotBinary
     foldConst OXor True  x = UNot x
@@ -105,7 +105,7 @@ circ2tt prog = prog'
     foldConst OAnd False x = UConst False
     foldConst OOr  True  x = UConst True
     foldConst OOr  False x = UId x
-    foldConst op _ _ = err "foldConst" "unrecognized operation" [op]
+    foldConst op _ _ = err "foldConst" ("unrecognized operation: " ++ show op)
 
 --------------------------------------------------------------------------------
 -- truth table evaluator
@@ -118,9 +118,9 @@ evalTT prog inps = evalProg reconstruct prog inps
     reconstruct :: TruthTable -> [Bool] -> IO Bool
     reconstruct (TTInp id) [] = case M.lookup id inputs of
       Just b  -> return b
-      Nothing -> err "reconstruct" "no input with id" [id]
+      Nothing -> err "reconstruct" ("no input with id: " ++ show id)
     reconstruct (TT {tt_f = f}) [x,y] = return $ f x y
-    reconstruct _ _ = err "reconstruct" "bad pattern" [-1]
+    reconstruct _ _ = err "reconstruct" "bad pattern"
 
 --------------------------------------------------------------------------------
 -- helper functions

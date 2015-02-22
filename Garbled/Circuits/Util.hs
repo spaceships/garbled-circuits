@@ -194,10 +194,10 @@ report = liftIO . putStr
 reportl :: MonadIO m => String -> m ()
 reportl = liftIO . putStrLn
 
-err :: Show s => String -> String -> [s] -> a
-err name warning xs = error $ "[" ++ name ++ "] " ++ warning ++ ": " ++ unwords (map show xs)
+err :: String -> String -> a
+err name warning = error $ "[" ++ name ++ "] " ++ warning
 
 violentLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
 violentLookup m k = case M.lookup k m of
-  Nothing -> err "violentLookup" "OOPS" [m]
+  Nothing -> err "violentLookup" ("OOPS: " ++ show m)
   Just  v -> v

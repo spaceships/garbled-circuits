@@ -28,15 +28,19 @@ garble = tt2gg . circ2tt
 --------------------------------------------------------------------------------
 -- id example
 
-circ_and :: Program Circ
-circ_and = buildCirc $ do
-  inp0 <- c_input
-  inp1 <- c_input
-  out  <- c_and inp0 inp1
-  return [out]
+circ_and :: CircBuilder [Ref Circ]
+circ_and = do
+  in0 <- c_input
+  in1 <- c_input
+  in2 <- c_input
+  in3 <- c_input
+  false <- c_const False
+  (out0, c0) <- add1Bit in0 in2 false
+  (out1, c1) <- add1Bit in1 in3 c0
+  return [out0, out1]
 
-eval_andGG :: Bool -> Bool -> IO [Bool]
-eval_andGG x y = evalGG [x,y] =<< garble circ_and
+eval_andGG :: [Bool] -> IO [Bool]
+eval_andGG xs = evalGG xs =<< garble (buildCirc circ_and)
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example
@@ -57,7 +61,7 @@ addBits xs ys = do
     builder (x:xs) (y:ys) c outs = do
       (out,c') <- add1Bit x y c
       builder xs ys c' (out:outs)
-    builder xs ys _ _ = err "builder" "lists of unequal length" [xs,ys]
+    builder xs ys _ _ = err "builder" ("lists of unequal length: " ++ show [xs,ys])
 
 circ_NBitAdder :: Int -> Program Circ
 circ_NBitAdder n = buildCirc $ do

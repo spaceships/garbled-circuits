@@ -92,13 +92,13 @@ evalCirc prog inps = evalProg reconstruct prog inps
     reconstruct :: Circ -> [Bool] -> IO Bool
     reconstruct (Input id) [] = case M.lookup id inputs of
       Just b  -> return b
-      Nothing -> err "reconstruct" "no input with id" [id]
+      Nothing -> err "reconstruct" ("no input with id " ++ show id)
     reconstruct (Const x) []    = return x
     reconstruct (Not _)   [x]   = return $ Prelude.not x
     reconstruct (Xor _ _) [x,y] = return $ Data.Bits.xor x y
     reconstruct (And _ _) [x,y] = return $ x && y
     reconstruct (Or _ _)  [x,y] = return $ x || y
-    reconstruct _ _ = err "reconstruct" "unrecognized pattern" [-1]
+    reconstruct _ _ = err "reconstruct" "unrecognized pattern"
 
 --------------------------------------------------------------------------------
 -- smart constructors

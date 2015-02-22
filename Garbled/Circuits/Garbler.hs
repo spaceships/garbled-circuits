@@ -19,6 +19,7 @@ import           System.Random
 
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 -- TODO: get better random numbers
+-- TODO: get better encryption
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
@@ -112,27 +113,35 @@ encode f x_pair y_pair out_pair = do
 -- evaluator
 
 evalGG :: [Bool] -> (Program GarbledGate, AllTheThings) -> IO [Bool]
-evalGG inps (prog, things) = map ungarble <$> result
+evalGG inps (prog, things) = do
+    result <- evalProg reconstruct prog inpwires :: IO [Wirelabel]
+#ifdef DEBUG
+    let out_pairs  = map (\ref -> (ref, violentLookup (things_pairs things) ref)) (prog_outputs prog)
+        out_truths = map (\(ref, pair) -> (ref, wl_val (wlp_true pair), wl_val (wlp_false pair))) out_pairs
+    forM out_truths $ \(ref, t, f) -> do
+      putStrLn ("[evalProg] outwire " ++ show ref ++ " true  value: " ++ show t)
+      putStrLn ("[evalProg] outwire " ++ show ref ++ " false value: " ++ show f)
+#endif
+    return (map ungarble result)
   where
     inpwlps  = map (violentLookup $ things_pairs things)
                    (S.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-    result = evalProg reconstruct prog inpwires :: IO [Wirelabel]
 
     reconstruct :: GarbledGate -> [Wirelabel] -> IO Wirelabel
     reconstruct (GarbledInput id) [] = case lookup id inputs of
-      Nothing -> err "reconstruct" "no input wire with id" [id]
+      Nothing -> err "reconstruct" ("no input wire with id" ++ show id)
       Just wl -> return wl
     reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
-      Nothing -> err "reconstruct" "no color matching" [wl_col x, wl_col y]
+      Nothing -> err "reconstruct" "no matching color"
       Just z  -> return z { wl_val = dec (wl_val x) (wl_val y) (wl_val z) }
-    reconstruct _ _ = err "reconstruct" "unknown pattern" [-1]
+    reconstruct _ _ = err "reconstruct" "unknown pattern"
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (things_truth things) of
-      Nothing -> err "ungarble" "unknown wirelabel" [wl]
+      Nothing -> err "ungarble" ("unknown wirelabel\n" ++ showEnv prog)
       Just b  -> b
 
 --------------------------------------------------------------------------------
@@ -146,7 +155,7 @@ tt2gg_lookup ref = lift $ gets (M.lookup ref . things_refs)
 
 pairs_lookup :: Ref GarbledGate -> Garble WirelabelPair
 pairs_lookup ref = lift $ gets (M.lookup ref . things_pairs) >>= \case
-  Nothing   -> err "pairs_lookup" "no ref" [ref]
+  Nothing   -> err "pairs_lookup" ("no ref: " ++ show ref)
   Just pair -> return pair
 
 allthethings :: Ref TruthTable -> Ref GarbledGate -> WirelabelPair -> Garble ()
@@ -170,3 +179,17 @@ truth_insert l b =
 
 sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false
+
+showEnv :: Program GarbledGate -> String
+showEnv prog = 
+    "--------------------------------------------------------------------------------\n"
+    ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog))) 
+  where
+    showGate (ref, gg) = show ref ++ ": " ++ case gg of 
+        GarbledInput id -> show id ++ "\n"
+        _ -> show (gate_inpx gg) ++ " " ++ show (gate_inpy gg) ++ "\n"
+             ++ concatMap showTabElem (gate_table gg)
+    showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ showWL wl ++ "\n"
+    showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
+    showWL wl = show (wl_col wl) ++ " " ++ show (wl_val wl)
+
