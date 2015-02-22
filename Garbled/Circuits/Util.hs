@@ -35,12 +35,13 @@ bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
 bindM2 f a b = do x <- a; y <- b; f x y
 
 -- returns a little-endian list of bits
-word2Bits :: (Num b, Ord b, Bits b) => b -> [Bool]
-word2Bits x = map (bitAnd x) (take (bitSize x) pow2s)
+word2Bits :: (FiniteBits b, Num b, Ord b, Bits b) => b -> [Bool]
+word2Bits x = map (bitAnd x) (take (finiteBitSize x) pow2s)
   where
     bitAnd a b = a .&. b > 0
 
 -- takes a little-endian list of bits
+bits2Word :: (Bits a, Num a) => [Bool] -> a
 bits2Word bs = sum $ zipWith select bs pow2s
   where
     select b x = if b then x else 0
