@@ -6,8 +6,8 @@ import Garbled.Circuits.Types
 import Garbled.Circuits.Util
 import Garbled.Circuits.Plaintext.TruthTable
 
-import           Data.Functor 
-import           Data.Maybe 
+import           Data.Functor
+import           Data.Maybe
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -53,34 +53,32 @@ tt2gg prog_tt = do
         prog_gg' = prog_gg { prog_outputs = outs }
     return (prog_gg', things)
   where
-    runAllThingsSt m = runState m (AllTheThings M.empty M.empty M.empty) -- (a, allthethings)
-    runTTReader    m = runReaderT m prog_tt -- a
-    runRand gen    m = evalRandT m gen -- a
-    runProgSt      m = execStateT m emptyProg -- (a, Program GarbledGate)
-
     runGarble :: StdGen -> Garble a -> (Program GarbledGate, AllTheThings)
-    runGarble gen g = runAllThingsSt (runTTReader (runRand gen (runProgSt g)))
+    runGarble gen = flip runState (AllTheThings M.empty M.empty M.empty)
+                  . flip runReaderT prog_tt
+                  . flip evalRandT gen
+                  . flip execStateT emptyProg
 
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
-garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case -- if the TruthTable already is garbled
-  Just ref -> return ref                          -- return a ref to it
-  Nothing  -> lookupTT tt_ref >>= \case           -- otherwise get the TruthTable
-    TTInp id -> do                                -- if it's an input:
-      pair   <- new_wirelabels                    --   get new wirelabels
-      gg_ref <- inputp (GarbledInput id)          --   make it a gate, get a ref
-      allthethings tt_ref gg_ref pair             --   keep track of our work in the state
-      return gg_ref                               --   return the gate ref
-    tt -> do                                      -- otherwise:
-      xref <- maybeRecurse (tt_inpx tt)
-      yref <- maybeRecurse (tt_inpy tt)
-      x_wl <- pairs_lookup xref
-      y_wl <- pairs_lookup yref
-      out_wl <- new_wirelabels
-      let table = encode (tt_f tt) x_wl y_wl out_wl
-      gg_ref <- internp (GarbledGate xref yref table)
-      allthethings tt_ref gg_ref out_wl
-      return gg_ref
+garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case       -- if the TruthTable already is garbled
+  Just ref -> return ref                                -- return a ref to it
+  Nothing  -> lookupTT tt_ref >>= \case                 -- otherwise get the TruthTable
+    TTInp id -> do                                      -- if it's an input:
+      pair   <- new_wirelabels                          --   get new wirelabels
+      gg_ref <- inputp (GarbledInput id)                --   make it a gate, get a ref
+      allthethings tt_ref gg_ref pair                   --   show our work in the state
+      return gg_ref                                     --   return the gate ref
+    tt -> do                                            -- otherwise:
+      xref <- maybeRecurse (tt_inpx tt)                 --   get a ref to the left child gate
+      yref <- maybeRecurse (tt_inpy tt)                 --   get a ref to the right child gate
+      x_wl <- pairs_lookup xref                         --   lookup wirelabels for left child
+      y_wl <- pairs_lookup yref                         --   lookup wirelabels for right child
+      out_wl <- new_wirelabels                          --   get new wirelabels
+      let table = encode (tt_f tt) x_wl y_wl out_wl     --   create the garbled table
+      gg_ref <- internp (GarbledGate xref yref table)   --   add garbled table to the Prog
+      allthethings tt_ref gg_ref out_wl                 --   show our work in the state
+      return gg_ref                                     --   return the new gate ref
 
 maybeRecurse :: Ref TruthTable -> Garble (Ref GarbledGate)
 maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
@@ -116,7 +114,7 @@ encode f x_pair y_pair out_pair = do
 evalGG :: [Bool] -> (Program GarbledGate, AllTheThings) -> IO [Bool]
 evalGG inps (prog, things) = map ungarble <$> result
   where
-    inpwlps  = map (violentLookup $ things_pairs things) 
+    inpwlps  = map (violentLookup $ things_pairs things)
                    (S.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
