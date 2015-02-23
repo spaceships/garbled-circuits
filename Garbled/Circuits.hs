@@ -28,8 +28,41 @@ garble = tt2gg . circ2tt
 --------------------------------------------------------------------------------
 -- id example
 
-circ_and :: CircBuilder [Ref Circ]
-circ_and = do
+-- implement circ_add2 directly
+circ_why :: CircBuilder [Ref Circ]
+circ_why = do
+  [in0,in1,in2,in3] <- replicateM 4 c_input
+  false <- c_const False
+
+  {-(out0, c0) <- add1Bit in0 in1 false-}
+  tmp0 <- c_xor in0 in2
+  out0 <- c_xor false tmp0
+  c0   <- bindM2 c_or (c_and in0 in2) (c_and false out0)
+
+  {-(out1, c1) <- add1Bit out0 in2 c0-}
+  tmp1 <- c_xor in1 in3
+  out1 <- c_xor c0 tmp1
+  {-c1   <- bindM2 c_or (c_and in1 in3) (c_and false out1)-}
+
+  return [out1, out0]
+
+
+circ_add1 :: CircBuilder [Ref Circ]
+circ_add1 = do
+  in0 <- c_input
+  in1 <- c_input
+  in2 <- c_input
+  in3 <- c_input
+  false <- c_const False
+  (out0, c0) <- add1Bit in0 in1 false
+  (out1, c1) <- add1Bit out0 in2 c0
+  out2 <- c_and in3 out1
+  out3 <- c_not out2
+  out4 <- c_or out1 out3
+  return [out0, out1, c1, out2, out4]
+
+circ_add2 :: CircBuilder [Ref Circ]
+circ_add2 = do
   in0 <- c_input
   in1 <- c_input
   in2 <- c_input
@@ -37,10 +70,10 @@ circ_and = do
   false <- c_const False
   (out0, c0) <- add1Bit in0 in2 false
   (out1, c1) <- add1Bit in1 in3 c0
-  return [out0, out1]
+  return [out1, out0]
 
-eval_andGG :: [Bool] -> IO [Bool]
-eval_andGG xs = evalGG xs =<< garble (buildCirc circ_and)
+evalCircGG :: CircBuilder [Ref Circ] -> [Bool] -> IO [Bool]
+evalCircGG c xs = evalGG xs =<< garble (buildCirc c)
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

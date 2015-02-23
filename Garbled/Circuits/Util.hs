@@ -175,7 +175,8 @@ traverse f prog ref = do
     Nothing -> do
       let c = lookupC ref prog
 #ifdef DEBUG
-      reportl ("[traverse" ++ show ref ++"] recursing on children: " ++ show (children c))
+      when (length (children c) > 0) $
+        reportl ("[traverse" ++ show ref ++"] recursing on children: " ++ show (children c))
 #endif
       kids <- mapM (traverse f prog) (children c)
       result <- liftIO $ f c kids

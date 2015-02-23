@@ -11,7 +11,7 @@ import           Data.Maybe
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Data.Bits (xor)
+import           Data.Bits
 import           Data.Hashable
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -24,10 +24,10 @@ import           System.Random
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
 
-enc :: Int -> Int -> Int -> Int
-enc k1 k2 m = hash (k1, k2) `xor` m
+enc :: Bits a => a -> a -> a -> a
+enc k1 k2 m = k1 `xor` k2 `xor` m
 
-dec :: Int -> Int -> Int -> Int
+dec :: Bits a => a -> a -> a -> a
 dec = enc
 
 --------------------------------------------------------------------------------
@@ -88,8 +88,8 @@ maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
 
 new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
-    x <- getRandom :: Garble Int
-    y <- getRandom :: Garble Int
+    x <- getRandom :: Garble Secret
+    y <- getRandom :: Garble Secret
     c <- getRandom :: Garble Color
     let wlt = Wirelabel { wl_col = c,     wl_val = x }
         wlf = Wirelabel { wl_col = not c, wl_val = y }
@@ -136,13 +136,27 @@ evalGG inps (prog, things) = do
       Just wl -> return wl
     reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
       Nothing -> err "reconstruct" "no matching color"
-      Just z  -> return z { wl_val = dec (wl_val x) (wl_val y) (wl_val z) }
+      Just z  -> do
+        let new_val = dec (wl_val x) (wl_val y) (wl_val z) 
+            new_wl  = z { wl_val = new_val }
+#ifdef DEBUG
+        checkValueExists new_wl
+#endif
+        return new_wl
     reconstruct _ _ = err "reconstruct" "unknown pattern"
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (things_truth things) of
-      Nothing -> err "ungarble" ("unknown wirelabel\n" ++ showEnv prog)
+      Nothing -> err "ungarble" $ "unknown wirelabel: " ++ show wl 
+#ifdef DEBUG
+                                  ++ "\n" ++ showEnv prog ++ showPairs things
+#endif
       Just b  -> b
+
+    checkValueExists :: Wirelabel -> IO ()
+    checkValueExists wl = case M.lookup wl (things_truth things) of
+      Nothing -> putStrLn ("[checkValueExists] warning: unknown wirelabel: " ++ show wl)
+      Just b  -> return ()
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -189,7 +203,13 @@ showEnv prog =
         GarbledInput id -> show id ++ "\n"
         _ -> show (gate_inpx gg) ++ " " ++ show (gate_inpy gg) ++ "\n"
              ++ concatMap showTabElem (gate_table gg)
-    showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ showWL wl ++ "\n"
+    showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ show wl ++ "\n"
     showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
-    showWL wl = show (wl_col wl) ++ " " ++ show (wl_val wl)
 
+showPairs :: AllTheThings -> String
+showPairs things = 
+    "--------------------------------------------------------------------------------\n"
+    ++ "-- pairs \n" ++ concatMap showPair (M.toList (things_pairs things)) 
+  where
+    showPair (ref, pair) = show ref ++ ": true=" ++ show (wlp_true pair) 
+                                    ++ " false=" ++ show (wlp_false pair) ++ "\n"

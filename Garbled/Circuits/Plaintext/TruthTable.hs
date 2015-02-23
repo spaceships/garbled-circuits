@@ -70,6 +70,7 @@ circ2tt prog = prog'
     constructBin op (Left (UId x)) (Right y)      = Right <$> internp (create op x y)
     constructBin op (Right x) (Left (UId y))      = Right <$> internp (create op x y)
     constructBin op (Left (UId x)) (Left (UId y)) = Right <$> internp (create op x y)
+    constructBin op x (Left (UId y))              = constructBin op x (Right y)
     -- UConst children: tricky
     constructBin op (Right x) (Left (UConst b)) = return $ Left (foldConst op b x)
     constructBin op (Left (UConst b)) (Right y) = return $ Left (foldConst op b y)
@@ -84,6 +85,9 @@ circ2tt prog = prog'
     constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
     constructBin op (Left (UNot x)) (Left (UNot y)) =
       Right <$> internp (flipYs (flipXs (create op x y)))
+
+    constructBin op x y = err "constructBin" 
+      ("unrecognized pattern:\n\t" ++ show op ++ "\n\t" ++ show x ++ "\n\t" ++ show y)
 
     constructNot :: Either NotBinary (Ref TruthTable)
                  -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))

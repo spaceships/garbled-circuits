@@ -4,6 +4,7 @@ module Garbled.Circuits.Types where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import           Data.Word
 
 type Map = M.Map
 type Set = S.Set
@@ -35,11 +36,13 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
+type Secret = Word32
+
 type Color = Bool
 
 data Wirelabel = Wirelabel { wl_col :: Color
-                           , wl_val :: Int
-                           } deriving (Show, Eq, Ord)
+                           , wl_val :: Secret
+                           } deriving (Eq, Ord)
 
 data WirelabelPair = WirelabelPair { wlp_true  :: Wirelabel
                                    , wlp_false :: Wirelabel
@@ -97,6 +100,10 @@ instance Show (Ref c) where
 
 instance Show InputId where
   show (InputId id) = "in" ++ show id
+
+instance Show Wirelabel where
+  show wl = "wl" ++ showCol (wl_col wl) ++ " " ++ show (wl_val wl)
+    where showCol b = if b then "1" else "0"
 
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }
