@@ -9,6 +9,7 @@ import Garbled.Circuits.Util (internp, inputp, lookupC, err, evalProg)
 
 import           Data.List (nub)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           Control.Monad.State
 import           Data.Bits (xor)
 import           Data.Functor
@@ -36,6 +37,7 @@ circ2tt prog = prog'
 
     transform :: [Ref Circ] -> State (Program TruthTable) ()
     transform outs = do
+        mapM_ trans (S.toList $ prog_inputs prog)
         eitherOuts <- mapM trans outs
         let outs' = map check eitherOuts
         modify (\p -> p { prog_outputs = outs' })
@@ -72,7 +74,7 @@ circ2tt prog = prog'
         OAnd -> UConst $ b1 && b2
         OOr  -> UConst $ b1 || b2
         _    -> err "constructBin" ("unrecognized operation: " ++ show op)
-    -- UNot children
+    -- UNot children: tricky
     constructBin op (Right x) (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
     constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
     constructBin op (Left (UNot x)) (Left (UNot y)) =

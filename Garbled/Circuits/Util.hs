@@ -189,9 +189,6 @@ traverse f prog ref = do
 --------------------------------------------------------------------------------
 -- evil helpers
 
-report :: MonadIO m => String -> m ()
-report = liftIO . putStr
-
 reportl :: MonadIO m => String -> m ()
 reportl = liftIO . putStrLn
 

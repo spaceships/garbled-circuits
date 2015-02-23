@@ -1,6 +1,12 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
-module Garbled.Circuits.Garbler where
+module Garbled.Circuits.Garbler 
+  (
+    tt2gg
+  , garble
+  , evalGG
+  )
+where
 
 import Garbled.Circuits.Types
 import Garbled.Circuits.Util
@@ -46,12 +52,18 @@ data AllTheThings = AllTheThings { things_refs  :: Map (Ref TruthTable) (Ref Gar
 --------------------------------------------------------------------------------
 -- garbling
 
+garble :: Program Circ -> IO (Program GarbledGate, AllTheThings)
+garble = tt2gg . circ2tt
+
 tt2gg :: Program TruthTable -> IO (Program GarbledGate, AllTheThings)
 tt2gg prog_tt = do
     gen <- getStdGen
-    let (prog_gg, things) = runGarble gen (mapM_ garbleGate (prog_outputs prog_tt))
+    let (prog_gg, things) = runGarble gen $ do
+          mapM_ garbleGate (S.toList $ prog_inputs prog_tt)
+          mapM_ garbleGate (prog_outputs prog_tt)
         outs     = map (violentLookup $ things_refs things) (prog_outputs prog_tt)
-        prog_gg' = prog_gg { prog_outputs = outs }
+        inps     = S.map (violentLookup $ things_refs things) (prog_inputs prog_tt)
+        prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
     return (prog_gg', things)
   where
     runGarble :: StdGen -> Garble a -> (Program GarbledGate, AllTheThings)
@@ -71,8 +83,8 @@ garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case       -- if the TruthTable alr
       allthethings tt_ref gg_ref pair                   --   show our work in the state
       return gg_ref                                     --   return the gate ref
     tt -> do                                            -- otherwise:
-      xref <- maybeRecurse (tt_inpx tt)                 --   get a ref to the left child gate
-      yref <- maybeRecurse (tt_inpy tt)                 --   get a ref to the right child gate
+      xref <- maybeRecurse (tt_inpx tt)                 --   get a ref for the left child gate
+      yref <- maybeRecurse (tt_inpy tt)                 --   get a ref for the right child gate
       x_wl <- pairs_lookup xref                         --   lookup wirelabels for left child
       y_wl <- pairs_lookup yref                         --   lookup wirelabels for right child
       out_wl <- new_wirelabels                          --   get new wirelabels
@@ -124,15 +136,13 @@ evalGG inps (prog, things) = do
 #endif
     return (map ungarble result)
   where
-    inpwlps  = map (violentLookup $ things_pairs things)
-                   (S.toList $ prog_inputs prog)
+    inpwlps  = map (violentLookup $ things_pairs things) (S.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-
     reconstruct :: GarbledGate -> [Wirelabel] -> IO Wirelabel
     reconstruct (GarbledInput id) [] = case lookup id inputs of
-      Nothing -> err "reconstruct" ("no input wire with id" ++ show id)
+      Nothing -> err "reconstruct" ("no input wire with id " ++ show id ++ "\n" ++ show inputs)
       Just wl -> return wl
     reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
       Nothing -> err "reconstruct" "no matching color"

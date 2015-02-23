@@ -36,7 +36,7 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
-type Secret = Word32
+type Secret = Word64
 
 type Color = Bool
 
