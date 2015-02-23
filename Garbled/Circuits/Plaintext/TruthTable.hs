@@ -26,7 +26,6 @@ data Operation = OInput
                deriving (Show, Eq, Ord)
 
 data NotBinary = UNot (Ref TruthTable)
-               | UId  (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)
 
@@ -42,7 +41,6 @@ circ2tt prog = prog'
         modify (\p -> p { prog_outputs = outs' })
       where
         check (Right ref)      = ref
-        check (Left (UId ref)) = ref
         check (Left x)         = err "check" ("non binary top level gate" ++ show x)
 
     --return a circ if it is a unary gate in order to fold it into its parent
@@ -65,22 +63,16 @@ circ2tt prog = prog'
                  -> Either NotBinary (Ref TruthTable)
                  -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     constructBin op (Right x) (Right y) = Right <$> internp (create op x y)
-    -- TODO: DO I REALLY NEED ALL POSSIBLE COMBINATIONS. this is so complicated
-    -- UId children: easy
-    constructBin op (Left (UId x)) (Right y)      = Right <$> internp (create op x y)
-    constructBin op (Right x) (Left (UId y))      = Right <$> internp (create op x y)
-    constructBin op (Left (UId x)) (Left (UId y)) = Right <$> internp (create op x y)
-    constructBin op x (Left (UId y))              = constructBin op x (Right y)
-    -- UConst children: tricky
-    constructBin op (Right x) (Left (UConst b)) = return $ Left (foldConst op b x)
-    constructBin op (Left (UConst b)) (Right y) = return $ Left (foldConst op b y)
+    -- UConst children
+    constructBin op (Right x) (Left (UConst b)) = return $ foldConst op b x
+    constructBin op (Left (UConst b)) (Right y) = return $ foldConst op b y
     constructBin op (Left (UConst b1)) (Left (UConst b2)) =
       return $ Left $ case op of
         OXor -> UConst $ b1 `xor` b2
         OAnd -> UConst $ b1 && b2
         OOr  -> UConst $ b1 || b2
         _    -> err "constructBin" ("unrecognized operation: " ++ show op)
-    -- UNot children: tricky
+    -- UNot children
     constructBin op (Right x) (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
     constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
     constructBin op (Left (UNot x)) (Left (UNot y)) =
@@ -92,8 +84,7 @@ circ2tt prog = prog'
     constructNot :: Either NotBinary (Ref TruthTable)
                  -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     constructNot (Right x)         = return $ Left (UNot x)
-    constructNot (Left (UNot x))   = return $ Left (UId x)
-    constructNot (Left (UId x))    = return $ Left (UNot x)
+    constructNot (Left (UNot x))   = return $ Right x
     constructNot (Left (UConst b)) = return $ Left (UConst (not b))
 
     create :: Operation -> Ref TruthTable -> Ref TruthTable -> TruthTable
@@ -102,13 +93,13 @@ circ2tt prog = prog'
     create OOr  x y = tt_or  { tt_inpx = x, tt_inpy = y }
     create op x y = err "create" ("unrecognized operation" ++ show op)
 
-    foldConst :: Operation -> Bool -> Ref TruthTable -> NotBinary
-    foldConst OXor True  x = UNot x
-    foldConst OXor False x = UId x
-    foldConst OAnd True  x = UId x
-    foldConst OAnd False x = UConst False
-    foldConst OOr  True  x = UConst True
-    foldConst OOr  False x = UId x
+    foldConst :: Operation -> Bool -> Ref TruthTable -> Either NotBinary (Ref TruthTable)
+    foldConst OXor True  x = Left (UNot x)
+    foldConst OXor False x = Right x
+    foldConst OAnd True  x = Right x
+    foldConst OAnd False x = Left (UConst False)
+    foldConst OOr  True  x = Left (UConst True)
+    foldConst OOr  False x = Right x
     foldConst op _ _ = err "foldConst" ("unrecognized operation: " ++ show op)
 
 --------------------------------------------------------------------------------
