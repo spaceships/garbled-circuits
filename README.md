@@ -9,7 +9,7 @@ expressed as a boolean circuit. Each gate of the circuit encrypts its output by
 using its input as keys. Since a party can only know a gate's output if it has
 the right input, only the correct output is recoverable.
 
-Usage
+usage
 -----
 
 First write your function as a `Program Circ`.
@@ -30,7 +30,6 @@ First write your function as a `Program Circ`.
 >         builder (x:xs) (y:ys) c outs = do
 >           (out,c') <- add1Bit x y c
 >           builder xs ys c' (out:outs)
->         builder xs ys _ _ = err "builder" ("lists of unequal length: " ++ show [xs,ys])
 >     
 >     circ_NBitAdder :: Int -> Program Circ
 >     circ_NBitAdder n = buildCirc $ do
@@ -56,7 +55,7 @@ Now we can add `Word8`s obliviously!
 >     ghci> eval_8BitAdderGG 21 21
 >     42
 
-Architecture
+architecture
 ------------
 
 garbled-circuits consists of three languages: `Circ`, `TruthTable`, and `GarbledGate`.
