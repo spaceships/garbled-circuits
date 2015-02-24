@@ -112,12 +112,12 @@ evalTT prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
-    reconstruct :: TruthTable -> [Bool] -> IO Bool
-    reconstruct (TTInp id) [] = case M.lookup id inputs of
+    reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> IO Bool
+    reconstruct _ (TTInp id) [] = case M.lookup id inputs of
       Just b  -> return b
       Nothing -> err "reconstruct" ("no input with id: " ++ show id)
-    reconstruct (TT {tt_f = f}) [x,y] = return $ f x y
-    reconstruct _ _ = err "reconstruct" "bad pattern"
+    reconstruct _ (TT {tt_f = f}) [x,y] = return $ f x y
+    reconstruct _ _ _ = err "reconstruct" "bad pattern"
 
 --------------------------------------------------------------------------------
 -- helper functions

@@ -2,6 +2,8 @@
 
 module Crypto.GarbledCircuits.Types where
 
+import           Numeric
+import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
@@ -36,7 +38,7 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
-type Secret = Word64
+type Secret = BS.ByteString
 
 type Color = Bool
 
@@ -102,8 +104,11 @@ instance Show InputId where
   show (InputId id) = "in" ++ show id
 
 instance Show Wirelabel where
-  show wl = "wl" ++ showCol (wl_col wl) ++ " " ++ show (wl_val wl)
+  show wl = "wl" ++ showCol (wl_col wl) ++ " " ++ hexStr
     where showCol b = if b then "1" else "0"
+          hexStr = concatMap (pad . hex) $ BS.unpack (wl_val wl)
+          pad s = if length s == 1 then '0' : s else s
+          hex = flip showHex ""
 
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }

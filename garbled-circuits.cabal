@@ -25,6 +25,9 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
+                      ,bytestring
+                      ,base16-bytestring
+                      ,cipher-aes
                       ,containers 
                       ,mtl 
                       ,hashable 

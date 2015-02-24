@@ -12,8 +12,11 @@ import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 import Crypto.GarbledCircuits.TruthTable
 
+import           Crypto.Cipher.AES
+import qualified Data.ByteString as BS
 import           Data.Functor
 import           Data.Maybe
+import           Data.Word
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -30,11 +33,13 @@ import           System.Random
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
 
-enc :: Bits a => a -> a -> a -> a
-enc k1 k2 m = k1 `xor` k2 `xor` m
+-- tweak = gateNum ++ colorX ++ colorY
+-- TODO: fill me in with AES! everything's ready to go.
+enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
+enc key gateRef x y z = undefined
 
-dec :: Bits a => a -> a -> a -> a
-dec = enc
+dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
+dec key gateRef x y z = undefined
 
 --------------------------------------------------------------------------------
 -- data types for garbling
@@ -47,7 +52,8 @@ type Garble = StateT (Program GarbledGate)
 data AllTheThings = AllTheThings { things_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
                                  , things_pairs :: Map (Ref GarbledGate) WirelabelPair
                                  , things_truth :: Map Wirelabel Bool
-                                 } deriving (Show)
+                                 , things_key   :: AES
+                                 }
 
 --------------------------------------------------------------------------------
 -- garbling
@@ -59,6 +65,7 @@ tt2gg :: Program TruthTable -> IO (Program GarbledGate, AllTheThings)
 tt2gg prog_tt = do
     gen <- getStdGen
     let (prog_gg, things) = runGarble gen $ do
+          updateKey =<< genKey
           mapM_ garbleGate (S.toList $ prog_inputs prog_tt)
           mapM_ garbleGate (prog_outputs prog_tt)
         outs     = map (violentLookup $ things_refs things) (prog_outputs prog_tt)
@@ -67,31 +74,32 @@ tt2gg prog_tt = do
     return (prog_gg', things)
   where
     runGarble :: StdGen -> Garble a -> (Program GarbledGate, AllTheThings)
-    runGarble gen = flip runState (AllTheThings M.empty M.empty M.empty)
+    runGarble gen = flip runState (AllTheThings M.empty M.empty M.empty undefined)
                   . flip runReaderT prog_tt
                   . flip evalRandT gen
                   . flip execStateT emptyProg
 
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
-garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case       -- if the TruthTable already is garbled
-  Just ref -> return ref                                -- return a ref to it
-  Nothing  -> lookupTT tt_ref >>= \case                 -- otherwise get the TruthTable
-    TTInp id -> do                                      -- if it's an input:
-      pair   <- new_wirelabels                          --   get new wirelabels
-      gg_ref <- inputp (GarbledInput id)                --   make it a gate, get a ref
-      allthethings tt_ref gg_ref pair                   --   show our work in the state
-      return gg_ref                                     --   return the gate ref
-    tt -> do                                            -- otherwise:
-      xref <- maybeRecurse (tt_inpx tt)                 --   get a ref for the left child gate
-      yref <- maybeRecurse (tt_inpy tt)                 --   get a ref for the right child gate
-      x_wl <- pairs_lookup xref                         --   lookup wirelabels for left child
-      y_wl <- pairs_lookup yref                         --   lookup wirelabels for right child
-      out_wl <- new_wirelabels                          --   get new wirelabels
-      let table = encode (tt_f tt) x_wl y_wl out_wl     --   create the garbled table
-      gg_ref <- internp (GarbledGate xref yref table)   --   add garbled table to the Prog
-      allthethings tt_ref gg_ref out_wl                 --   show our work in the state
-      return gg_ref                                     --   return the new gate ref
+garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case        -- if the TruthTable already is garbled
+  Just ref -> return ref                                 -- return a ref to it
+  Nothing  -> lookupTT tt_ref >>= \case                  -- otherwise get the TruthTable
+    TTInp id -> do                                       -- if it's an input:
+      pair   <- new_wirelabels                           --   get new wirelabels
+      gg_ref <- inputp (GarbledInput id)                 --   make it a gate, get a ref
+      allthethings tt_ref gg_ref pair                    --   show our work in the state
+      return gg_ref                                      --   return the gate ref
+    tt -> do                                             -- otherwise:
+      xref <- maybeRecurse (tt_inpx tt)                  --   get a ref for the left child gate
+      yref <- maybeRecurse (tt_inpy tt)                  --   get a ref for the right child gate
+      x_wl <- pairs_lookup xref                          --   lookup wirelabels for left child
+      y_wl <- pairs_lookup yref                          --   lookup wirelabels for right child
+      out_wl <- new_wirelabels                           --   get new wirelabels
+      gg_ref <- nextRef                                  --   get a new ref
+      table  <- encode gg_ref (tt_f tt) x_wl y_wl out_wl --   create the garbled table
+      writep gg_ref (GarbledGate xref yref table)        --   add garbled table to the Prog
+      allthethings tt_ref gg_ref out_wl                  --   show our work in the state
+      return gg_ref                                      --   return the new gate ref
 
 maybeRecurse :: Ref TruthTable -> Garble (Ref GarbledGate)
 maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
@@ -100,25 +108,28 @@ maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
 
 new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
-    x <- getRandom :: Garble Secret
-    y <- getRandom :: Garble Secret
+    xs <- getRandoms :: Garble [Word8]
+    ys <- getRandoms :: Garble [Word8]
     c <- getRandom :: Garble Color
-    let wlt = Wirelabel { wl_col = c,     wl_val = x }
-        wlf = Wirelabel { wl_col = not c, wl_val = y }
+    let wlt = Wirelabel { wl_col = c,     wl_val = BS.pack (take 16 xs) }
+        wlf = Wirelabel { wl_col = not c, wl_val = BS.pack (take 16 ys) }
     return $ WirelabelPair { wlp_true = wlt, wlp_false = wlf }
 
-encode :: (Bool -> Bool -> Bool) -- the function defining a TruthTable
+encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption)
+       -> (Bool -> Bool -> Bool) -- the function defining a TruthTable
        -> WirelabelPair          -- the x-wirelabel pair
        -> WirelabelPair          -- the y-wirelabel pair
        -> WirelabelPair          -- the out-wirelabel pair
-       -> [((Color, Color), Wirelabel)]
-encode f x_pair y_pair out_pair = do
+       -> Garble [((Color, Color), Wirelabel)]
+encode ref f x_pair y_pair out_pair = do
+  k <- lift (gets things_key) 
+  return $ do -- list monad
     a <- [True, False]
     b <- [True, False]
     let x = sel a x_pair
         y = sel b y_pair
         z = sel (f a b) out_pair
-        out = z { wl_val = enc (wl_val x) (wl_val y) (wl_val z) }
+        out = z { wl_val = enc k ref x y (wl_val z) }
     return ((wl_col x, wl_col y), out)
 
 --------------------------------------------------------------------------------
@@ -136,24 +147,26 @@ evalGG inps (prog, things) = do
 #endif
     return (map ungarble result)
   where
+    k = things_key things
+
     inpwlps  = map (violentLookup $ things_pairs things) (S.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-    reconstruct :: GarbledGate -> [Wirelabel] -> IO Wirelabel
-    reconstruct (GarbledInput id) [] = case lookup id inputs of
+    reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> IO Wirelabel
+    reconstruct _ (GarbledInput id) [] = case lookup id inputs of
       Nothing -> err "reconstruct" ("no input wire with id " ++ show id ++ "\n" ++ show inputs)
       Just wl -> return wl
-    reconstruct g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
+    reconstruct ref g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
       Nothing -> err "reconstruct" "no matching color"
       Just z  -> do
-        let new_val = dec (wl_val x) (wl_val y) (wl_val z) 
+        let new_val = dec k ref x y (wl_val z)
             new_wl  = z { wl_val = new_val }
 #ifdef DEBUG
         checkValueExists new_wl
 #endif
         return new_wl
-    reconstruct _ _ = err "reconstruct" "unknown pattern"
+    reconstruct _ _ _ = err "reconstruct" "unknown pattern"
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (things_truth things) of
@@ -170,6 +183,12 @@ evalGG inps (prog, things) = do
 
 --------------------------------------------------------------------------------
 -- helpers
+
+genKey :: Garble AES
+genKey = initAES . BS.pack . take 16 <$> getRandoms
+
+updateKey :: AES -> Garble ()
+updateKey k = lift $ modify (\st -> st { things_key = k })
 
 lookupTT :: Ref TruthTable -> Garble TruthTable
 lookupTT ref = asks (lookupC ref)

@@ -9,6 +9,7 @@ module Crypto.GarbledCircuits.Util
   , internp
   , lookp
   , lookupC
+  , nextRef
   , topoSort
   , truthVals
   , traverse
@@ -51,6 +52,13 @@ pow2s = [ shift 1 x | x <- [0..] ]
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program
+
+nextRef :: (Ord c, MonadState (Program c) m) => m (Ref c)
+nextRef = do
+  prog <- get
+  let env   = prog_env prog
+      deref = env_deref env
+  return $ succ (fst (M.findMax deref))
 
 internp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 internp circ = do
@@ -149,7 +157,7 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
       tell [ref]
 
 evalProg :: (Show b, CanHaveChildren c)
-         => (c -> [b] -> IO b) -> Program c -> [b] -> IO [b]
+         => (Ref c -> c -> [b] -> IO b) -> Program c -> [b] -> IO [b]
 evalProg construct prog inps = do
 #ifdef DEBUG
     let inputs = zip (map InputId [0..]) inps
@@ -163,7 +171,7 @@ evalProg construct prog inps = do
     return (reverse $ snd <$> outputs)
 
 traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
-         => (c -> [b] -> IO b) -> Program c -> Ref c -> m b
+         => (Ref c -> c -> [b] -> IO b) -> Program c -> Ref c -> m b
 traverse f prog ref = do
   precomputed <- get
   case M.lookup ref precomputed of
@@ -179,7 +187,7 @@ traverse f prog ref = do
         reportl ("[traverse" ++ show ref ++"] recursing on children: " ++ show (children c))
 #endif
       kids <- mapM (traverse f prog) (children c)
-      result <- liftIO $ f c kids
+      result <- liftIO $ f ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG
       reportl ("[traverse" ++ show ref ++"] result: " ++ show result)
