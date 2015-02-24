@@ -1,12 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Garbled.Circuits where
+module Crypto.GarbledCircuits where
 
-import Garbled.Circuits.Garbler
-import Garbled.Circuits.Types
-import Garbled.Circuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
-import Garbled.Circuits.Plaintext.Language
-import Garbled.Circuits.Plaintext.TruthTable
+import Crypto.GarbledCircuits.Types
+import Crypto.GarbledCircuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
+import Crypto.GarbledCircuits.Language
+import Crypto.GarbledCircuits.TruthTable
+import Crypto.GarbledCircuits.GarbledGate
 
 import Control.Applicative
 import Control.Monad

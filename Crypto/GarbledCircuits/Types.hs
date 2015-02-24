@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards, GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
-module Garbled.Circuits.Types where
+module Crypto.GarbledCircuits.Types where
 
 import qualified Data.Map as M
 import qualified Data.Set as S

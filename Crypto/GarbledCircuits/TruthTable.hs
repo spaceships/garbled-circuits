@@ -1,11 +1,11 @@
-module Garbled.Circuits.Plaintext.TruthTable
+module Crypto.GarbledCircuits.TruthTable
   ( circ2tt
   , evalTT
   )
 where
 
-import Garbled.Circuits.Types
-import Garbled.Circuits.Util (internp, inputp, lookupC, err, evalProg)
+import Crypto.GarbledCircuits.Types
+import Crypto.GarbledCircuits.Util (internp, inputp, lookupC, err, evalProg)
 
 import           Data.List (nub)
 import qualified Data.Map as M

@@ -1,4 +1,4 @@
-module Garbled.Circuits.Plaintext.Language
+module Crypto.GarbledCircuits.Language
   ( CircBuilder
   , buildCirc
   , evalCirc
@@ -11,8 +11,8 @@ module Garbled.Circuits.Plaintext.Language
   )
 where
 
-import Garbled.Circuits.Types
-import Garbled.Circuits.Util (evalProg, err, lookupC)
+import Crypto.GarbledCircuits.Types
+import Crypto.GarbledCircuits.Util (evalProg, err, lookupC)
 
 import           Control.Monad.State
 import qualified Data.Bits

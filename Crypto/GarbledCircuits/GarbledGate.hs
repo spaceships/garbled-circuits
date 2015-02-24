@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
-module Garbled.Circuits.Garbler 
+module Crypto.GarbledCircuits.GarbledGate 
   (
     tt2gg
   , garble
@@ -8,9 +8,9 @@ module Garbled.Circuits.Garbler
   )
 where
 
-import Garbled.Circuits.Types
-import Garbled.Circuits.Util
-import Garbled.Circuits.Plaintext.TruthTable
+import Crypto.GarbledCircuits.Types
+import Crypto.GarbledCircuits.Util
+import Crypto.GarbledCircuits.TruthTable
 
 import           Data.Functor
 import           Data.Maybe

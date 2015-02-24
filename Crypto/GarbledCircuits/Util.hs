@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
-module Garbled.Circuits.Util
+module Crypto.GarbledCircuits.Util
   ( bindM2
   , bits2Word
   , err
@@ -18,7 +18,7 @@ module Garbled.Circuits.Util
   )
 where
 
-import Garbled.Circuits.Types
+import Crypto.GarbledCircuits.Types
 
 import           Control.Monad.State
 import           Control.Monad.Writer

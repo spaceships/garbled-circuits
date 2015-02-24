@@ -61,8 +61,8 @@ Architecture
 
 garbled-circuits consists of three languages: `Circ`, `TruthTable`, and `GarbledGate`.
 
-`Circ` is for building circuits. It's the user-facing language. It's available in
-`Garbled.Circuits.Plaintext.Language`. It has smart constructors like `c_or` and
+`Circ` is for building circuits. It's the user-facing language. It's available
+in `Garbled.Circuits.Language`. It has smart constructors like `c_or` and
 `c_not` as in the example above.
 
 `TruthTable` is an intermediate langauge between `Circ` and `GarbledGate`. It's

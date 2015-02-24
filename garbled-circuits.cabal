@@ -16,12 +16,12 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Garbled.Circuits
-                      ,Garbled.Circuits.Types
-                      ,Garbled.Circuits.Garbler
-                      ,Garbled.Circuits.Util
-                      ,Garbled.Circuits.Plaintext.Language
-                      ,Garbled.Circuits.Plaintext.TruthTable
+  exposed-modules:     Crypto.GarbledCircuits
+                      ,Crypto.GarbledCircuits.Types
+                      ,Crypto.GarbledCircuits.Util
+                      ,Crypto.GarbledCircuits.Language
+                      ,Crypto.GarbledCircuits.TruthTable
+                      ,Crypto.GarbledCircuits.GarbledGate
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
