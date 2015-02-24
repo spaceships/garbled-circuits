@@ -3,11 +3,11 @@ garbled-circuits
 
 Haskell EDSL for secure two-party computation via garbled circuits.
 
-Garbled circuits are a way for two parties to find the output of a function
-without leaking their input to each other. Garbled circuits work on any function 
-that can be expressed as a boolean circuit. It works by encrypting the output of
-each gate with the correct input. Then only the correct output of the function
-is recoverable.
+Two parties can make a garbled circuit to find the output of a function without
+learning each other's input. The function can be any function if it can be
+expressed as a boolean circuit. Each gate of the circuit encrypts its output by
+using its input as keys. Since a party can only know a gate's output if it has
+the right input, only the correct output is recoverable.
 
 Usage
 -----
