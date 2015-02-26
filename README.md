@@ -9,6 +9,8 @@ expressed as a boolean circuit. Each gate of the circuit encrypts its output by
 using its input as keys. Since a party can only know a gate's output if it has
 the right input, only the correct output is recoverable.
 
+It uses AES (with AESNI support) for garbling, over 128-bit wirelabels.
+
 usage
 -----
 

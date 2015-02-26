@@ -26,7 +26,6 @@ import           Control.Monad.Writer
 import           Data.Bits
 import           Data.Functor
 import qualified Data.Map as M
-import           Data.Word
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------

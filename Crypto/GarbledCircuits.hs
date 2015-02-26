@@ -8,16 +8,19 @@ import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.GarbledGate
 
-import Control.Applicative
 import Control.Monad
+import Data.Functor
 import Data.Word
 
 -- circuit language - done
 -- intermediate TruthTable representation - done
 -- garbled circuit representation - done
--- garbling - in progress - add optimizations (free xor, row reduction, half gates)
--- ot
--- evaluation
+-- garbling
+--    * add AES garbling -- in progress
+--    * add garbling optimizations (free xor, row reduction, half gates)
+-- network 
+-- oblivious transfer
+-- standard library of circuits
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

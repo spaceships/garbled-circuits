@@ -8,10 +8,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
 
+securityParameter :: Int
+securityParameter = 16 -- => 128-bit keys and wirelabels
+
 type Map = M.Map
 type Set = S.Set
 
-newtype Ref a = Ref Int deriving (Enum, Ord, Eq)
+newtype Ref a = Ref { unRef :: Word64 } deriving (Enum, Ord, Eq)
 
 newtype InputId = InputId Int deriving (Enum, Ord, Eq)
 
@@ -116,6 +119,5 @@ emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = empty
 emptyEnv :: Env c
 emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
 
--- teeny helpers
 truthVals :: (Bool -> Bool -> Bool) -> [Bool]
 truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]

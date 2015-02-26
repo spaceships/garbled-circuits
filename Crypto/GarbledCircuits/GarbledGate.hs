@@ -13,33 +13,47 @@ import Crypto.GarbledCircuits.Util
 import Crypto.GarbledCircuits.TruthTable
 
 import           Crypto.Cipher.AES
-import qualified Data.ByteString as BS
-import           Data.Functor
-import           Data.Maybe
-import           Data.Word
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Data.Bits
-import           Data.Hashable
+import qualified Data.Bits
+import qualified Data.ByteString as B
+import           Data.Functor
 import qualified Data.Map as M
+import qualified Data.Serialize as S
 import qualified Data.Set as S
-import           System.Random
+import           Data.Word
+
+--------------------------------------------------------------------------------
+-- security parameter: determines size of keys and wirelabels
+
+sec = Crypto.GarbledCircuits.Types.securityParameter
+
+--------------------------------------------------------------------------------
 
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 -- TODO: get better random numbers
--- TODO: get better encryption
+-- TODO: get better encryption -- in progress
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
 
+-- AES-based garbling. Uses AESNI (implementation from cypher-aes).
+-- https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13
 -- tweak = gateNum ++ colorX ++ colorY
--- TODO: fill me in with AES! everything's ready to go.
+-- garbling: pi(K || T) xor K xor M where K = 2A xor 4B 
+--   multiplication in galois field
+--   pi is publicly keyed block cipher
 enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
-enc key gateRef x y z = undefined
+enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
+  where
+    k       = wl_val x `xor` wl_val y -- TODO: add galois field multiplications
+    tweak   = S.encode (unRef gateRef, bit (wl_col x), bit (wl_col y))
+    bit b   = S.encode $ if b then 1 else (0 :: Word32)
+    xor x y = B.pack $ B.zipWith Data.Bits.xor x y
 
 dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
-dec key gateRef x y z = undefined
+dec = enc
 
 --------------------------------------------------------------------------------
 -- data types for garbling
@@ -111,8 +125,8 @@ new_wirelabels = do
     xs <- getRandoms :: Garble [Word8]
     ys <- getRandoms :: Garble [Word8]
     c <- getRandom :: Garble Color
-    let wlt = Wirelabel { wl_col = c,     wl_val = BS.pack (take 16 xs) }
-        wlf = Wirelabel { wl_col = not c, wl_val = BS.pack (take 16 ys) }
+    let wlt = Wirelabel { wl_col = c,     wl_val = B.pack (take sec xs) }
+        wlf = Wirelabel { wl_col = not c, wl_val = B.pack (take sec ys) }
     return $ WirelabelPair { wlp_true = wlt, wlp_false = wlf }
 
 encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption)
@@ -122,14 +136,15 @@ encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption
        -> WirelabelPair          -- the out-wirelabel pair
        -> Garble [((Color, Color), Wirelabel)]
 encode ref f x_pair y_pair out_pair = do
-  k <- lift (gets things_key) 
+  k  <- lift (gets things_key) 
   return $ do -- list monad
     a <- [True, False]
     b <- [True, False]
-    let x = sel a x_pair
-        y = sel b y_pair
-        z = sel (f a b) out_pair
-        out = z { wl_val = enc k ref x y (wl_val z) }
+    let x   = sel a x_pair
+        y   = sel b y_pair
+        z   = sel (f a b) out_pair
+        ct  = enc k ref x y (wl_val z) 
+        out = z { wl_val = ct }
     return ((wl_col x, wl_col y), out)
 
 --------------------------------------------------------------------------------
@@ -140,7 +155,7 @@ evalGG inps (prog, things) = do
     result <- evalProg reconstruct prog inpwires :: IO [Wirelabel]
 #ifdef DEBUG
     let out_pairs  = map (\ref -> (ref, violentLookup (things_pairs things) ref)) (prog_outputs prog)
-        out_truths = map (\(ref, pair) -> (ref, wl_val (wlp_true pair), wl_val (wlp_false pair))) out_pairs
+        out_truths = map (\(ref, pair) -> (ref, wlp_true pair, wlp_false pair)) out_pairs
     forM out_truths $ \(ref, t, f) -> do
       putStrLn ("[evalProg] outwire " ++ show ref ++ " true  value: " ++ show t)
       putStrLn ("[evalProg] outwire " ++ show ref ++ " false value: " ++ show f)
@@ -185,7 +200,7 @@ evalGG inps (prog, things) = do
 -- helpers
 
 genKey :: Garble AES
-genKey = initAES . BS.pack . take 16 <$> getRandoms
+genKey = initAES <$> B.pack . take sec <$> getRandoms
 
 updateKey :: AES -> Garble ()
 updateKey k = lift $ modify (\st -> st { things_key = k })
