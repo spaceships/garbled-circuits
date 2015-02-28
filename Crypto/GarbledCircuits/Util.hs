@@ -1,22 +1,23 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
 module Crypto.GarbledCircuits.Util
-  ( bindM2
-  , bits2Word
-  , err
-  , evalProg
-  , inputp
-  , internp
-  , lookp
-  , lookupC
-  , nextRef
-  , topoSort
-  , truthVals
-  , traverse
-  , word2Bits
-  , writep
-  , violentLookup
-  )
+  {-( bindM2-}
+  {-, bits2Word-}
+  {-, err-}
+  {-, evalProg-}
+  {-, inputp-}
+  {-, internp-}
+  {-, lookp-}
+  {-, lookupC-}
+  {-, nextRef-}
+  {-, progSize-}
+  {-, topoSort-}
+  {-, truthVals-}
+  {-, traverse-}
+  {-, word2Bits-}
+  {-, writep-}
+  {-, violentLookup-}
+  {-)-}
 where
 
 import Crypto.GarbledCircuits.Types
@@ -48,6 +49,9 @@ bits2Word bs = sum $ zipWith select bs pow2s
 
 pow2s :: (Num b, Bits b) => [b]
 pow2s = [ shift 1 x | x <- [0..] ]
+
+progSize :: Program c -> Int
+progSize = M.size . env_deref . prog_env
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program
@@ -121,9 +125,8 @@ data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
 
 type DFS c = WriterT [Ref c] (State (DFSSt c))
 
--- TODO: this is broken
 topoSort :: CanHaveChildren c => Program c -> [Ref c]
-topoSort prog = snd $ evalState (runWriterT loop) initialState
+topoSort prog = evalState (execWriterT (loop prog)) initialState
   where
     deref = env_deref (prog_env prog)
 
@@ -131,28 +134,34 @@ topoSort prog = snd $ evalState (runWriterT loop) initialState
                          , dfs_done = S.empty
                          }
 
-    loop = next >>= \case 
-      Just ref -> visit ref
+    loop :: CanHaveChildren c => Program c -> DFS c ()
+    loop prog = next >>= \case 
+      Just ref -> visit prog ref >> loop prog
       Nothing  -> return ()
 
-    visit ref = do
-      let circ = lookupC ref prog
-      mapM_ visit (children circ) 
-      mark ref
+    visit :: CanHaveChildren c => Program c -> Ref c -> DFS c ()
+    visit prog ref = do
+      done <- gets dfs_done
+      when (S.notMember ref done) $ do
+        let circ = lookupC ref prog
+        mapM_ (visit prog) (children circ)
+        mark ref
 
     next :: DFS c (Maybe (Ref c))
     next = do
-      todo <- gets dfs_todo 
-      if S.size todo > 0 then 
-        return $ Just (S.findMax todo) 
+      st <- get
+      let todo = dfs_todo st
+      if S.size todo > 0 then do
+        let ref = S.findMax todo
+        put st { dfs_todo = S.delete ref todo }
+        return $ Just ref
       else 
         return $ Nothing
 
+    mark :: Ref c -> DFS c ()
     mark ref = do
       st <- get
-      put st { dfs_todo = S.delete ref (dfs_todo st)
-             , dfs_done = S.insert ref (dfs_done st)
-             }
+      put st { dfs_done = S.insert ref (dfs_done st) }
       tell [ref]
 
 evalProg :: (Show b, CanHaveChildren c)
