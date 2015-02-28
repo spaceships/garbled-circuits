@@ -1,23 +1,23 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
 module Crypto.GarbledCircuits.Util
-  {-( bindM2-}
-  {-, bits2Word-}
-  {-, err-}
-  {-, evalProg-}
-  {-, inputp-}
-  {-, internp-}
-  {-, lookp-}
-  {-, lookupC-}
-  {-, nextRef-}
-  {-, progSize-}
-  {-, topoSort-}
-  {-, truthVals-}
-  {-, traverse-}
-  {-, word2Bits-}
-  {-, writep-}
-  {-, violentLookup-}
-  {-)-}
+  ( bindM2
+  , bits2Word
+  , err
+  , evalProg
+  , inputp
+  , internp
+  , lookp
+  , lookupC
+  , nextRef
+  , progSize
+  , topoSort
+  , truthVals
+  , traverse
+  , word2Bits
+  , writep
+  , violentLookup
+  )
 where
 
 import Crypto.GarbledCircuits.Types
@@ -152,7 +152,7 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
       st <- get
       let todo = dfs_todo st
       if S.size todo > 0 then do
-        let ref = S.findMax todo
+        let ref = S.findMin todo
         put st { dfs_todo = S.delete ref todo }
         return $ Just ref
       else 
@@ -171,13 +171,37 @@ evalProg construct prog inps = do
     let inputs = zip (map InputId [0..]) inps
     forM inputs $ \(id, inp) -> reportl ("[evalProg] " ++ show id ++ ": " ++ show inp)
 #endif
-    resultMap <- execStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty
+    {-resultMap <- execStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty-}
+    resultMap <- execStateT (traverse' construct prog) M.empty
     let outputs = map (\ref -> (ref, violentLookup resultMap ref)) (prog_outputs prog)
 #ifdef DEBUG
     forM outputs $ \(ref, res) -> reportl ("[evalProg] output " ++ show ref ++ ": " ++ show res)
 #endif
     return (reverse $ snd <$> outputs)
 
+-- topological evaluator
+traverse' :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
+             => (Ref c -> c -> [b] -> IO b) -> Program c -> m ()
+-- It seems that refs are in topological order already...
+{-traverseTopo construct prog = mapM_ eval (topoSort prog)-}
+traverse' construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
+  where
+    getVal ref = get >>= \precomputed ->
+      case M.lookup ref precomputed of
+        Nothing  -> err "traverse.getVal" ("unknown ref: " ++ show ref)
+        Just res -> return res
+
+    eval ref = do
+      let c = lookupC ref prog
+      kids <- mapM getVal (children c)
+      result <- liftIO $ construct ref c kids
+      modify (M.insert ref result)
+#ifdef DEBUG
+      reportl ("[traverse] " ++ show ref ++ show (children c) ++ " result = " ++ show result)
+#endif
+      return result
+
+-- recursive evaluator
 traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
          => (Ref c -> c -> [b] -> IO b) -> Program c -> Ref c -> m b
 traverse f prog ref = do
