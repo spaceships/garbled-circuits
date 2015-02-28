@@ -20,7 +20,6 @@ import           Data.Bits
 import qualified Data.ByteString as B
 import           Data.Functor
 import qualified Data.Map as M
-import           Data.SBV (pMult)
 import qualified Data.Serialize as S
 import qualified Data.Set as S
 import           Data.Word
