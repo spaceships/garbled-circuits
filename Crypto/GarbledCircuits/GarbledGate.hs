@@ -16,10 +16,11 @@ import           Crypto.Cipher.AES
 import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
-import qualified Data.Bits
+import           Data.Bits
 import qualified Data.ByteString as B
 import           Data.Functor
 import qualified Data.Map as M
+import           Data.SBV (pMult)
 import qualified Data.Serialize as S
 import qualified Data.Set as S
 import           Data.Word
@@ -33,24 +34,37 @@ sec = Crypto.GarbledCircuits.Types.securityParameter
 
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 -- TODO: get better random numbers
--- TODO: get better encryption -- in progress
+-- TODO: garble and evaluate topologically (fix topoSort)
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
 
--- AES-based garbling. Uses AESNI (implementation from cypher-aes).
+-- AES-based garbling. Uses native hw instructions if available. Source:
 -- https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13
--- tweak = gateNum ++ colorX ++ colorY
 -- garbling: pi(K || T) xor K xor M where K = 2A xor 4B 
---   multiplication in galois field
---   pi is publicly keyed block cipher
+--           where tweak = gateNum ++ colorX ++ colorY
+--                 pi is publicly keyed block cipher (AES)
 enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
 enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
   where
-    k       = wl_val x `xor` wl_val y -- TODO: add galois field multiplications
+    k       = double (wl_val x) `xor` double (double (wl_val y)) 
     tweak   = S.encode (unRef gateRef, bit (wl_col x), bit (wl_col y))
-    bit b   = S.encode $ if b then 1 else (0 :: Word32)
+
+    bit b   = if b then 1 :: Word32 else 0 :: Word32
+
     xor x y = B.pack $ B.zipWith Data.Bits.xor x y
+
+    double :: Secret -> Secret
+    double = B.pack . fst . shiftLeft . B.unpack
+
+    shiftLeft :: [Word8] -> ([Word8], Word8)
+    shiftLeft []     = ([], 0)
+    shiftLeft (x:xs) = let (xs', c) = shiftLeft xs 
+                           (x', c') = f x c
+                       in (x':xs', c')
+      where
+        f :: Word8 -> Word8 -> (Word8, Word8)
+        f x c = let msb = shiftR x 7 in (shiftL x 1 .|. c, msb)
 
 dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
 dec = enc

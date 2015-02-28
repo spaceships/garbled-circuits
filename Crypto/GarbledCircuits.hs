@@ -16,7 +16,7 @@ import Data.Word
 -- intermediate TruthTable representation - done
 -- garbled circuit representation - done
 -- garbling
---    * add AES garbling -- in progress
+--    * add AES garbling -- done
 --    * add garbling optimizations (free xor, row reduction, half gates)
 -- network 
 -- oblivious transfer
