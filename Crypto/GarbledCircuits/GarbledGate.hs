@@ -1,21 +1,21 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate 
-  (
-    tt2gg
-  , garble
-  , evalGG
-  )
+  {-(-}
+    {-tt2gg-}
+  {-, garble-}
+  {-, evalGG-}
+  {-)-}
 where
 
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 import Crypto.GarbledCircuits.TruthTable
 
-import           Crypto.Cipher.AES
-import           Control.Monad.Random
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           Crypto.Cipher.AES
+import           Crypto.Random
 import           Data.Bits
 import qualified Data.ByteString as B
 import           Data.Functor
@@ -26,7 +26,6 @@ import           Data.Word
 
 --------------------------------------------------------------------------------
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
--- TODO: get better random numbers
 
 --------------------------------------------------------------------------------
 -- security parameter: determines size of keys and wirelabels
@@ -37,7 +36,7 @@ sec = Crypto.GarbledCircuits.Types.securityParameter
 -- data types for garbling
 
 type Garble = StateT (Program GarbledGate)
-                (RandT StdGen
+                (StateT SystemRNG
                   (ReaderT (Program TruthTable)
                     (State Context)))
 
@@ -90,7 +89,7 @@ garble = tt2gg . circ2tt
 
 tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
 tt2gg prog_tt = do
-    gen <- getStdGen
+    gen <- cprgCreate <$> createEntropyPool
     let (prog_gg, things) = runGarble gen $ do
           updateKey =<< genKey
           -- we assume TT refs are topologically sorted
@@ -100,10 +99,10 @@ tt2gg prog_tt = do
         prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
     return (prog_gg', things)
   where
-    runGarble :: StdGen -> Garble a -> (Program GarbledGate, Context)
+    runGarble :: SystemRNG -> Garble a -> (Program GarbledGate, Context)
     runGarble gen = flip runState (Context M.empty M.empty M.empty undefined)
                   . flip runReaderT prog_tt
-                  . flip evalRandT gen
+                  . flip evalStateT gen
                   . flip execStateT emptyProg
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
@@ -127,11 +126,11 @@ garbleGate tt_ref = lookupTT tt_ref >>= \case            -- get the TruthTable
 
 new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
-    xs <- getRandoms :: Garble [Word8]
-    ys <- getRandoms :: Garble [Word8]
-    c <- getRandom :: Garble Color
-    let wlt = Wirelabel { wl_col = c,     wl_val = B.pack (take sec xs) }
-        wlf = Wirelabel { wl_col = not c, wl_val = B.pack (take sec ys) }
+    x <- randBlock
+    y <- randBlock
+    c <- randBool
+    let wlt = Wirelabel { wl_col = c,     wl_val = x }
+        wlf = Wirelabel { wl_col = not c, wl_val = y }
     return $ WirelabelPair { wlp_true = wlt, wlp_false = wlf }
 
 encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption)
@@ -141,7 +140,7 @@ encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption
        -> WirelabelPair          -- the out-wirelabel pair
        -> Garble [((Color, Color), Wirelabel)]
 encode ref f x_pair y_pair out_pair = do
-  k  <- lift (gets things_key) 
+  k  <- lift.lift $ gets things_key 
   return $ do -- list monad
     a <- [True, False]
     b <- [True, False]
@@ -197,23 +196,38 @@ evalGG inps (prog, things) = do
 -- helpers
 
 genKey :: Garble AES
-genKey = initAES <$> B.pack . take sec <$> getRandoms
+genKey = initAES <$> randBlock
+
+randBlock :: Garble Ciphertext
+randBlock = do
+  gen <- lift get
+  let (blk, gen') = cprgGenerate sec gen
+  lift $ put gen'
+  return blk
+
+randBool :: Garble Bool
+randBool = do
+  gen <- lift get
+  let (blk, gen') = cprgGenerate 1 gen
+      w8 = head (B.unpack blk)
+  lift $ put gen'
+  return (w8 .&. 1 > 0)
 
 updateKey :: AES -> Garble ()
-updateKey k = lift $ modify (\st -> st { things_key = k })
+updateKey k = lift.lift $ modify (\st -> st { things_key = k })
 
 lookupTT :: Ref TruthTable -> Garble TruthTable
 lookupTT ref = asks (lookupC ref)
 
 tt2gg_lookup :: Ref TruthTable -> Garble (Ref GarbledGate)
 tt2gg_lookup ref = do
-    res <- lift $ gets (M.lookup ref . things_refs)
+    res <- lift.lift $ gets (M.lookup ref . things_refs)
     case res of
       Nothing  -> err "tt2gg_lookup" ("ref " ++ show ref ++ " has not been garbled")
       Just ref -> return ref
 
 pairs_lookup :: Ref GarbledGate -> Garble WirelabelPair
-pairs_lookup ref = lift $ gets (M.lookup ref . things_pairs) >>= \case
+pairs_lookup ref = lift.lift $ gets (M.lookup ref . things_pairs) >>= \case
   Nothing   -> err "pairs_lookup" ("no ref: " ++ show ref)
   Just pair -> return pair
 
@@ -226,15 +240,15 @@ allthethings reftt refgg pair = do
 
 tt2gg_insert :: Ref TruthTable -> Ref GarbledGate -> Garble ()
 tt2gg_insert x y =
-  lift $ modify (\st -> st { things_refs = M.insert x y (things_refs st) })
+  lift.lift $ modify (\st -> st { things_refs = M.insert x y (things_refs st) })
 
 pairs_insert :: Ref GarbledGate -> WirelabelPair -> Garble ()
 pairs_insert ref pair =
-  lift $ modify (\st -> st { things_pairs = M.insert ref pair (things_pairs st) })
+  lift.lift $ modify (\st -> st { things_pairs = M.insert ref pair (things_pairs st) })
 
 truth_insert :: Wirelabel -> Bool -> Garble ()
 truth_insert l b =
-  lift $ modify (\st -> st { things_truth = M.insert l b (things_truth st) })
+  lift.lift $ modify (\st -> st { things_truth = M.insert l b (things_truth st) })
 
 sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false

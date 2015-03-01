@@ -26,12 +26,11 @@ library
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
                       ,cereal
+                      ,crypto-random
                       ,bytestring
                       ,cipher-aes
                       ,containers 
                       ,mtl 
-                      ,random
-                      ,MonadRandom
 
   -- hs-source-dirs:      
   ghc-options:        -fwarn-incomplete-patterns
