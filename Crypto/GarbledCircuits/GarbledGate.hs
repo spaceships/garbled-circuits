@@ -33,7 +33,6 @@ sec = Crypto.GarbledCircuits.Types.securityParameter
 
 -- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
 -- TODO: get better random numbers
--- TODO: garble and evaluate topologically (fix topoSort)
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
@@ -93,8 +92,8 @@ tt2gg prog_tt = do
     gen <- getStdGen
     let (prog_gg, things) = runGarble gen $ do
           updateKey =<< genKey
-          mapM_ garbleGate (S.toList $ prog_inputs prog_tt)
-          mapM_ garbleGate (prog_outputs prog_tt)
+          -- we assume TT refs are topologically sorted
+          mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt))) 
         outs     = map (violentLookup $ things_refs things) (prog_outputs prog_tt)
         inps     = S.map (violentLookup $ things_refs things) (prog_inputs prog_tt)
         prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
@@ -106,19 +105,16 @@ tt2gg prog_tt = do
                   . flip evalRandT gen
                   . flip execStateT emptyProg
 
-
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
-garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case        -- if the TruthTable already is garbled
-  Just ref -> return ref                                 -- return a ref to it
-  Nothing  -> lookupTT tt_ref >>= \case                  -- otherwise get the TruthTable
+garbleGate tt_ref = lookupTT tt_ref >>= \case            -- get the TruthTable
     TTInp id -> do                                       -- if it's an input:
       pair   <- new_wirelabels                           --   get new wirelabels
       gg_ref <- inputp (GarbledInput id)                 --   make it a gate, get a ref
       allthethings tt_ref gg_ref pair                    --   show our work in the state
       return gg_ref                                      --   return the gate ref
     tt -> do                                             -- otherwise:
-      xref <- maybeRecurse (tt_inpx tt)                  --   get a ref for the left child gate
-      yref <- maybeRecurse (tt_inpy tt)                  --   get a ref for the right child gate
+      xref <- tt2gg_lookup (tt_inpx tt)                  --   get a ref for the left child gate
+      yref <- tt2gg_lookup (tt_inpy tt)                  --   get a ref for the right child gate
       x_wl <- pairs_lookup xref                          --   lookup wirelabels for left child
       y_wl <- pairs_lookup yref                          --   lookup wirelabels for right child
       out_wl <- new_wirelabels                           --   get new wirelabels
@@ -127,11 +123,6 @@ garbleGate tt_ref = tt2gg_lookup tt_ref >>= \case        -- if the TruthTable al
       writep gg_ref (GarbledGate xref yref table)        --   add garbled table to the Prog
       allthethings tt_ref gg_ref out_wl                  --   show our work in the state
       return gg_ref                                      --   return the new gate ref
-
-maybeRecurse :: Ref TruthTable -> Garble (Ref GarbledGate)
-maybeRecurse tt_ref = tt2gg_lookup tt_ref >>= \case
-    Nothing     -> garbleGate tt_ref
-    Just gg_ref -> return gg_ref
 
 new_wirelabels :: Garble WirelabelPair
 new_wirelabels = do
@@ -221,8 +212,12 @@ updateKey k = lift $ modify (\st -> st { things_key = k })
 lookupTT :: Ref TruthTable -> Garble TruthTable
 lookupTT ref = asks (lookupC ref)
 
-tt2gg_lookup :: Ref TruthTable -> Garble (Maybe (Ref GarbledGate))
-tt2gg_lookup ref = lift $ gets (M.lookup ref . things_refs)
+tt2gg_lookup :: Ref TruthTable -> Garble (Ref GarbledGate)
+tt2gg_lookup ref = do
+    res <- lift $ gets (M.lookup ref . things_refs)
+    case res of
+      Nothing  -> err "tt2gg_lookup" ("ref " ++ show ref ++ " has not been garbled")
+      Just ref -> return ref
 
 pairs_lookup :: Ref GarbledGate -> Garble WirelabelPair
 pairs_lookup ref = lift $ gets (M.lookup ref . things_pairs) >>= \case
