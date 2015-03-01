@@ -23,6 +23,7 @@ import Data.Word
 -- oblivious transfer
 -- a small standard library of circuits
 -- haddock documentation
+-- parallelize garbling and evaluation based on topological levels
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

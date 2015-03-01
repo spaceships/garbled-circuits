@@ -12,6 +12,7 @@ module Crypto.GarbledCircuits.Util
   , nextRef
   , progSize
   , topoSort
+  , topoLevels
   , truthVals
   , traverse
   , word2Bits
@@ -163,6 +164,20 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
       st <- get
       put st { dfs_done = S.insert ref (dfs_done st) }
       tell [ref]
+
+topoLevels :: CanHaveChildren c => Program c -> [[Ref c]]
+topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
+  where
+    update ref (set, deps) = 
+      let kids = children (lookupC ref prog) 
+      in if any (flip S.member deps) kids
+         then Left  $ S.insert ref deps
+         else Right $ (S.insert ref set, S.insert ref deps)
+
+    foldTopo [] ref = [(S.singleton ref, S.singleton ref)]
+    foldTopo ((s,d):sets) ref = case update ref (s,d) of
+      Right (s',d') -> (s',d') : sets
+      Left  d'      -> (s ,d') : foldTopo sets ref
 
 evalProg :: (Show b, CanHaveChildren c)
          => (Ref c -> c -> [b] -> IO b) -> Program c -> [b] -> IO [b]
