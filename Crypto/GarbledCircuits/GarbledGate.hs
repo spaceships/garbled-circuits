@@ -25,14 +25,27 @@ import qualified Data.Set as S
 import           Data.Word
 
 --------------------------------------------------------------------------------
+-- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
+-- TODO: get better random numbers
+
+--------------------------------------------------------------------------------
 -- security parameter: determines size of keys and wirelabels
 
 sec = Crypto.GarbledCircuits.Types.securityParameter
 
 --------------------------------------------------------------------------------
+-- data types for garbling
 
--- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
--- TODO: get better random numbers
+type Garble = StateT (Program GarbledGate)
+                (RandT StdGen
+                  (ReaderT (Program TruthTable)
+                    (State Context)))
+
+data Context = Context { things_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
+                       , things_pairs :: Map (Ref GarbledGate) WirelabelPair
+                       , things_truth :: Map Wirelabel Bool
+                       , things_key   :: AES
+                       }
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
@@ -42,17 +55,19 @@ sec = Crypto.GarbledCircuits.Types.securityParameter
 -- garbling: pi(K || T) xor K xor M where K = 2A xor 4B 
 --           where tweak = gateNum ++ colorX ++ colorY
 --                 pi is publicly keyed block cipher (AES)
-enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
+enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Ciphertext -> Ciphertext
 enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
   where
-    k       = double (wl_val x) `xor` double (double (wl_val y)) 
-    tweak   = S.encode (unRef gateRef, bit (wl_col x), bit (wl_col y))
+    k     = double (wl_val x) `xor` double (double (wl_val y)) 
+    tweak = S.encode (unRef gateRef, bit (wl_col x), bit (wl_col y))
 
-    bit b   = if b then 1 :: Word32 else 0 :: Word32
+    bit :: Bool -> Word32
+    bit b = if b then 1 else 0
 
+    xor :: Ciphertext -> Ciphertext -> Ciphertext
     xor x y = B.pack $ B.zipWith Data.Bits.xor x y
 
-    double :: Secret -> Secret
+    double :: Ciphertext -> Ciphertext
     double = B.pack . fst . shiftLeft . B.unpack
 
     shiftLeft :: [Word8] -> ([Word8], Word8)
@@ -64,30 +79,16 @@ enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
         f :: Word8 -> Word8 -> (Word8, Word8)
         f x c = let msb = shiftR x 7 in (shiftL x 1 .|. c, msb)
 
-dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Secret -> Secret
+dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Ciphertext -> Ciphertext
 dec = enc
-
---------------------------------------------------------------------------------
--- data types for garbling
-
-type Garble = StateT (Program GarbledGate)
-                (RandT StdGen
-                  (ReaderT (Program TruthTable)
-                    (State AllTheThings)))
-
-data AllTheThings = AllTheThings { things_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
-                                 , things_pairs :: Map (Ref GarbledGate) WirelabelPair
-                                 , things_truth :: Map Wirelabel Bool
-                                 , things_key   :: AES
-                                 }
 
 --------------------------------------------------------------------------------
 -- garbling
 
-garble :: Program Circ -> IO (Program GarbledGate, AllTheThings)
+garble :: Program Circ -> IO (Program GarbledGate, Context)
 garble = tt2gg . circ2tt
 
-tt2gg :: Program TruthTable -> IO (Program GarbledGate, AllTheThings)
+tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
 tt2gg prog_tt = do
     gen <- getStdGen
     let (prog_gg, things) = runGarble gen $ do
@@ -99,8 +100,8 @@ tt2gg prog_tt = do
         prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
     return (prog_gg', things)
   where
-    runGarble :: StdGen -> Garble a -> (Program GarbledGate, AllTheThings)
-    runGarble gen = flip runState (AllTheThings M.empty M.empty M.empty undefined)
+    runGarble :: StdGen -> Garble a -> (Program GarbledGate, Context)
+    runGarble gen = flip runState (Context M.empty M.empty M.empty undefined)
                   . flip runReaderT prog_tt
                   . flip evalRandT gen
                   . flip execStateT emptyProg
@@ -154,7 +155,7 @@ encode ref f x_pair y_pair out_pair = do
 --------------------------------------------------------------------------------
 -- evaluator
 
-evalGG :: [Bool] -> (Program GarbledGate, AllTheThings) -> IO [Bool]
+evalGG :: [Bool] -> (Program GarbledGate, Context) -> IO [Bool]
 evalGG inps (prog, things) = do
     result <- evalProg reconstruct prog inpwires :: IO [Wirelabel]
 #ifdef DEBUG
@@ -181,9 +182,6 @@ evalGG inps (prog, things) = do
       Just z  -> do
         let new_val = dec k ref x y (wl_val z)
             new_wl  = z { wl_val = new_val }
-#ifdef DEBUG
-        checkValueExists new_wl
-#endif
         return new_wl
     reconstruct _ _ _ = err "reconstruct" "unknown pattern"
 
@@ -194,11 +192,6 @@ evalGG inps (prog, things) = do
                                   ++ "\n" ++ showEnv prog ++ showPairs things
 #endif
       Just b  -> b
-
-    checkValueExists :: Wirelabel -> IO ()
-    checkValueExists wl = case M.lookup wl (things_truth things) of
-      Nothing -> putStrLn ("[checkValueExists] warning: unknown wirelabel: " ++ show wl)
-      Just b  -> return ()
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -258,7 +251,7 @@ showEnv prog =
     showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ show wl ++ "\n"
     showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
 
-showPairs :: AllTheThings -> String
+showPairs :: Context -> String
 showPairs things = 
     "--------------------------------------------------------------------------------\n"
     ++ "-- pairs \n" ++ concatMap showPair (M.toList (things_pairs things)) 

@@ -171,8 +171,7 @@ evalProg construct prog inps = do
     let inputs = zip (map InputId [0..]) inps
     forM inputs $ \(id, inp) -> reportl ("[evalProg] " ++ show id ++ ": " ++ show inp)
 #endif
-    {-resultMap <- execStateT (mapM (traverse construct prog) (prog_outputs prog)) M.empty-}
-    resultMap <- execStateT (traverse' construct prog) M.empty
+    resultMap <- execStateT (traverse construct prog) M.empty
     let outputs = map (\ref -> (ref, violentLookup resultMap ref)) (prog_outputs prog)
 #ifdef DEBUG
     forM outputs $ \(ref, res) -> reportl ("[evalProg] output " ++ show ref ++ ": " ++ show res)
@@ -180,11 +179,10 @@ evalProg construct prog inps = do
     return (reverse $ snd <$> outputs)
 
 -- topological evaluator
-traverse' :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
+traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
              => (Ref c -> c -> [b] -> IO b) -> Program c -> m ()
 -- It seems that refs are in topological order already...
-{-traverseTopo construct prog = mapM_ eval (topoSort prog)-}
-traverse' construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
+traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
   where
     getVal ref = get >>= \precomputed ->
       case M.lookup ref precomputed of
@@ -198,31 +196,6 @@ traverse' construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
       modify (M.insert ref result)
 #ifdef DEBUG
       reportl ("[traverse] " ++ show ref ++ show (children c) ++ " result = " ++ show result)
-#endif
-      return result
-
--- recursive evaluator
-traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
-         => (Ref c -> c -> [b] -> IO b) -> Program c -> Ref c -> m b
-traverse f prog ref = do
-  precomputed <- get
-  case M.lookup ref precomputed of
-    Just b  -> do 
-#ifdef DEBUG
-      reportl ("[traverse" ++ show ref ++"] precomputed: " ++ show b)
-#endif
-      return b
-    Nothing -> do
-      let c = lookupC ref prog
-#ifdef DEBUG
-      when (length (children c) > 0) $
-        reportl ("[traverse" ++ show ref ++"] recursing on children: " ++ show (children c))
-#endif
-      kids <- mapM (traverse f prog) (children c)
-      result <- liftIO $ f ref c kids
-      modify (M.insert ref result)
-#ifdef DEBUG
-      reportl ("[traverse" ++ show ref ++"] result: " ++ show result)
 #endif
       return result
 

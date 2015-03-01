@@ -26,6 +26,10 @@ data Operation = OInput
                | OOr
                deriving (Show, Eq, Ord)
 
+-- It is necessary to have a datatype that is neither a TruthTable nor a Circ,
+-- since there is not a 1-to-1 correspondence between Nullary/Unary/Binary gates
+-- and Binary gates. NotBinary gets passed around as we transform a Circ to a
+-- TruthTable.
 data NotBinary = UNot (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)

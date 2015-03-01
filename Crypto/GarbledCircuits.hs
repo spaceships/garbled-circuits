@@ -3,10 +3,10 @@
 module Crypto.GarbledCircuits where
 
 import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
 import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.GarbledGate
+import Crypto.GarbledCircuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
 
 import Control.Monad
 import Data.Functor
@@ -20,7 +20,9 @@ import Data.Word
 --    * add garbling optimizations (free xor, row reduction, half gates)
 -- network 
 -- oblivious transfer
--- standard library of circuits
+-- a small standard library of circuits
+-- haddock documentation
+-- better rng than System.Random (perhaps one based on AESNI?)
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

@@ -41,12 +41,12 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
-type Secret = BS.ByteString
+type Ciphertext = BS.ByteString
 
 type Color = Bool
 
 data Wirelabel = Wirelabel { wl_col :: Color
-                           , wl_val :: Secret
+                           , wl_val :: Ciphertext
                            } deriving (Eq, Ord)
 
 data WirelabelPair = WirelabelPair { wlp_true  :: Wirelabel
