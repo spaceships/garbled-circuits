@@ -1,11 +1,11 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
-module Crypto.GarbledCircuits.GarbledGate 
-  {-(-}
-    {-tt2gg-}
-  {-, garble-}
-  {-, evalGG-}
-  {-)-}
+module Crypto.GarbledCircuits.GarbledGate
+  (
+    tt2gg
+  , garble
+  , evalGG
+  )
 where
 
 import Crypto.GarbledCircuits.Types
@@ -51,13 +51,13 @@ data Context = Context { things_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
 
 -- AES-based garbling. Uses native hw instructions if available. Source:
 -- https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13
--- garbling: pi(K || T) xor K xor M where K = 2A xor 4B 
+-- garbling: pi(K || T) xor K xor M where K = 2A xor 4B
 --           where tweak = gateNum ++ colorX ++ colorY
 --                 pi is publicly keyed block cipher (AES)
 enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Ciphertext -> Ciphertext
 enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
   where
-    k     = double (wl_val x) `xor` double (double (wl_val y)) 
+    k     = double (wl_val x) `xor` double (double (wl_val y))
     tweak = S.encode (unRef gateRef, bit (wl_col x), bit (wl_col y))
 
     bit :: Bool -> Word32
@@ -71,7 +71,7 @@ enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
 
     shiftLeft :: [Word8] -> ([Word8], Word8)
     shiftLeft []     = ([], 0)
-    shiftLeft (x:xs) = let (xs', c) = shiftLeft xs 
+    shiftLeft (x:xs) = let (xs', c) = shiftLeft xs
                            (x', c') = f x c
                        in (x':xs', c')
       where
@@ -93,7 +93,7 @@ tt2gg prog_tt = do
     let (prog_gg, things) = runGarble gen $ do
           updateKey =<< genKey
           -- we assume TT refs are topologically sorted
-          mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt))) 
+          mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt)))
         outs     = map (violentLookup $ things_refs things) (prog_outputs prog_tt)
         inps     = S.map (violentLookup $ things_refs things) (prog_inputs prog_tt)
         prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
@@ -140,14 +140,14 @@ encode :: Ref GarbledGate        -- the ref for this gate (needed for encryption
        -> WirelabelPair          -- the out-wirelabel pair
        -> Garble [((Color, Color), Wirelabel)]
 encode ref f x_pair y_pair out_pair = do
-  k  <- lift.lift $ gets things_key 
+  k  <- lift.lift $ gets things_key
   return $ do -- list monad
     a <- [True, False]
     b <- [True, False]
     let x   = sel a x_pair
         y   = sel b y_pair
         z   = sel (f a b) out_pair
-        ct  = enc k ref x y (wl_val z) 
+        ct  = enc k ref x y (wl_val z)
         out = z { wl_val = ct }
     return ((wl_col x, wl_col y), out)
 
@@ -161,8 +161,8 @@ evalGG inps (prog, things) = do
     let out_pairs  = map (\ref -> (ref, violentLookup (things_pairs things) ref)) (prog_outputs prog)
         out_truths = map (\(ref, pair) -> (ref, wlp_true pair, wlp_false pair)) out_pairs
     forM out_truths $ \(ref, t, f) -> do
-      putStrLn ("[evalProg] outwire " ++ show ref ++ " true  value: " ++ show t)
-      putStrLn ("[evalProg] outwire " ++ show ref ++ " false value: " ++ show f)
+      putStrLn ("[evalProg] outwire " ++ show ref ++ " true:  " ++ show t)
+      putStrLn ("[evalProg] outwire " ++ show ref ++ " false: " ++ show f)
 #endif
     return (map ungarble result)
   where
@@ -186,7 +186,7 @@ evalGG inps (prog, things) = do
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (things_truth things) of
-      Nothing -> err "ungarble" $ "unknown wirelabel: " ++ show wl 
+      Nothing -> err "ungarble" $ "unknown wirelabel: " ++ show wl
 #ifdef DEBUG
                                   ++ "\n" ++ showEnv prog ++ showPairs things
 #endif
@@ -254,11 +254,11 @@ sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false
 
 showEnv :: Program GarbledGate -> String
-showEnv prog = 
+showEnv prog =
     "--------------------------------------------------------------------------------\n"
-    ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog))) 
+    ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog)))
   where
-    showGate (ref, gg) = show ref ++ ": " ++ case gg of 
+    showGate (ref, gg) = show ref ++ ": " ++ case gg of
         GarbledInput id -> show id ++ "\n"
         _ -> show (gate_inpx gg) ++ " " ++ show (gate_inpy gg) ++ "\n"
              ++ concatMap showTabElem (gate_table gg)
@@ -266,9 +266,9 @@ showEnv prog =
     showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
 
 showPairs :: Context -> String
-showPairs things = 
+showPairs things =
     "--------------------------------------------------------------------------------\n"
-    ++ "-- pairs \n" ++ concatMap showPair (M.toList (things_pairs things)) 
+    ++ "-- pairs \n" ++ concatMap showPair (M.toList (things_pairs things))
   where
-    showPair (ref, pair) = show ref ++ ": true=" ++ show (wlp_true pair) 
+    showPair (ref, pair) = show ref ++ ": true=" ++ show (wlp_true pair)
                                     ++ " false=" ++ show (wlp_false pair) ++ "\n"

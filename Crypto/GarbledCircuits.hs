@@ -16,13 +16,13 @@ import Data.Word
 -- intermediate TruthTable representation - done
 -- garbled circuit representation - done
 -- garbling
---    * add AES garbling -- done
---    * add garbling optimizations (free xor, row reduction, half gates)
--- network 
+--    * add AES garbling - done
+--    * crypto rng - done
+--    * garbling optimizations (free xor, row reduction, half gates)
+-- network
 -- oblivious transfer
 -- a small standard library of circuits
 -- haddock documentation
--- better rng than System.Random (perhaps one based on AESNI?)
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

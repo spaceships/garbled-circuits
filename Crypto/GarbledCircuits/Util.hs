@@ -120,7 +120,7 @@ lookupC ref prog = case M.lookup ref deref of
 
 -- yay polymorphic topoSort
 data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
-                     , dfs_done :: Set (Ref c) 
+                     , dfs_done :: Set (Ref c)
                      }
 
 type DFS c = WriterT [Ref c] (State (DFSSt c))
@@ -135,7 +135,7 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
                          }
 
     loop :: CanHaveChildren c => Program c -> DFS c ()
-    loop prog = next >>= \case 
+    loop prog = next >>= \case
       Just ref -> visit prog ref >> loop prog
       Nothing  -> return ()
 
@@ -155,7 +155,7 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
         let ref = S.findMin todo
         put st { dfs_todo = S.delete ref todo }
         return $ Just ref
-      else 
+      else
         return $ Nothing
 
     mark :: Ref c -> DFS c ()
@@ -179,7 +179,7 @@ evalProg construct prog inps = do
     return (reverse $ snd <$> outputs)
 
 -- topological evaluator
-traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c) 
+traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c)
              => (Ref c -> c -> [b] -> IO b) -> Program c -> m ()
 -- It seems that refs are in topological order already...
 traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
@@ -195,7 +195,11 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
       result <- liftIO $ construct ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG
-      reportl ("[traverse] " ++ show ref ++ show (children c) ++ " result = " ++ show result)
+      reportl ("[traverse] " 
+                ++ show ref 
+                ++ show (unRef <$> children c) 
+                ++ " result = " 
+                ++ show result)
 #endif
       return result
 

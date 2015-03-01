@@ -84,7 +84,7 @@ circ2tt prog = prog'
     constructBin op (Left (UNot x)) (Left (UNot y)) =
       Right <$> internp (flipYs (flipXs (create op x y)))
 
-    constructBin op x y = err "constructBin" 
+    constructBin op x y = err "constructBin"
       ("unrecognized pattern:\n\t" ++ show op ++ "\n\t" ++ show x ++ "\n\t" ++ show y)
 
     constructNot :: Either NotBinary (Ref TruthTable)
