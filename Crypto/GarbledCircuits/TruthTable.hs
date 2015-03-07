@@ -111,16 +111,16 @@ circ2tt prog = prog'
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-evalTT :: Program TruthTable -> [Bool] -> IO [Bool]
+evalTT :: Program TruthTable -> [Bool] -> [Bool]
 evalTT prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
-    reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> IO Bool
+    reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
     reconstruct _ (TTInp id) [] = case M.lookup id inputs of
-      Just b  -> return b
+      Just b  -> b
       Nothing -> err "reconstruct" ("no input with id: " ++ show id)
-    reconstruct _ (TT {tt_f = f}) [x,y] = return $ f x y
+    reconstruct _ (TT {tt_f = f}) [x,y] = f x y
     reconstruct _ _ _ = err "reconstruct" "bad pattern"
 
 --------------------------------------------------------------------------------

@@ -16,38 +16,24 @@ import           Debug.Trace
 --------------------------------------------------------------------------------
 -- garbled evaluator
 
-{-eval :: [Wirelabel] -> Program GarbledGate -> [Wirelabel]-}
-{-eval inps prog =-}
-
 -- evaluate a garbled circuit locally
-evalLocal :: [Bool] -> (Program GarbledGate, Context) -> IO [Bool]
-evalLocal inps (prog, ctx) = do
-    result <- evalProg reconstruct prog inpwires :: IO [Wirelabel]
-#ifdef DEBUG
-    let out_pairs  = map (\ref -> (ref, violentLookup (ctx_pairs ctx) ref)) (prog_outputs prog)
-        out_truths = map (\(ref, pair) -> (ref, wlp_true pair, wlp_false pair)) out_pairs
-    forM out_truths $ \(ref, t, f) -> do
-      putStrLn ("[evalProg] outwire " ++ show ref ++ " true:  " ++ show t)
-      putStrLn ("[evalProg] outwire " ++ show ref ++ " false: " ++ show f)
-#endif
-    return (map ungarble result)
+evalLocal :: [Bool] -> (Program GarbledGate, Context) -> [Bool]
+evalLocal inps (prog, ctx) = map ungarble result
   where
-    k = ctx_key ctx
-
+    result   = evalProg reconstruct prog inpwires
     inpwlps  = map (violentLookup $ ctx_pairs ctx) (Set.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-    reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> IO Wirelabel
+    reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> Wirelabel
     reconstruct _ (GarbledInput id) [] = case lookup id inputs of
       Nothing -> err "reconstruct" ("no input wire with id " ++ show id ++ "\n" ++ show inputs)
-      Just wl -> return wl
+      Just wl -> wl
     reconstruct ref g [x,y] = case lookup (wl_col x, wl_col y) (gate_table g) of
       Nothing -> err "reconstruct" "no matching color"
-      Just z  -> do
-        let new_val = dec k ref x y (wl_val z)
-            new_wl  = z { wl_val = new_val }
-        return new_wl
+      Just z  -> let new_val = dec (ctx_key ctx) ref x y (wl_val z)
+                     new_wl  = z { wl_val = new_val }
+                 in new_wl
     reconstruct _ _ _ = err "reconstruct" "unknown pattern"
 
     ungarble :: Wirelabel -> Bool

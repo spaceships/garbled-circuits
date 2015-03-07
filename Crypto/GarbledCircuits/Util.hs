@@ -15,7 +15,6 @@ module Crypto.GarbledCircuits.Util
   , topoSort
   , topoLevels
   , truthVals
-  , traverse
   , word2Bits
   , writep
   , violentLookup
@@ -138,7 +137,9 @@ lookupC ref prog = case M.lookup ref deref of
   where
     deref = env_deref (prog_env prog)
 
--- yay polymorphic topoSort
+--------------------------------------------------------------------------------
+-- polymorphic topoSort
+
 data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
                      , dfs_done :: Set (Ref c)
                      }
@@ -198,24 +199,18 @@ topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
       Right (s',d') -> (s',d') : sets
       Left  d'      -> (s ,d') : foldTopo sets ref
 
-evalProg :: (Show b, CanHaveChildren c)
-         => (Ref c -> c -> [b] -> IO b) -> Program c -> [b] -> IO [b]
-evalProg construct prog inps = do
-#ifdef DEBUG
-    let inputs = zip (map InputId [0..]) inps
-    forM inputs $ \(id, inp) -> reportl ("[evalProg] " ++ show id ++ ": " ++ show inp)
-#endif
-    resultMap <- execStateT (traverse construct prog) M.empty
-    let outputs = map (\ref -> (ref, violentLookup resultMap ref)) (prog_outputs prog)
-#ifdef DEBUG
-    forM outputs $ \(ref, res) -> reportl ("[evalProg] output " ++ show ref ++ ": " ++ show res)
-#endif
-    return (reverse $ snd <$> outputs)
+--------------------------------------------------------------------------------
+-- polymorphic evaluation
 
--- topological evaluator
-traverse :: (Show b, MonadState (Map (Ref c) b) m, MonadIO m, CanHaveChildren c)
-             => (Ref c -> c -> [b] -> IO b) -> Program c -> m ()
--- It seems that refs are in topological order already...
+evalProg :: (Show b, CanHaveChildren c)
+         => (Ref c -> c -> [b] -> b) -> Program c -> [b] -> [b]
+evalProg construct prog inps = reverse outputs
+  where
+    resultMap = execState (traverse construct prog) M.empty
+    outputs   = map (resultMap !) (prog_outputs prog)
+
+traverse :: (Show b, MonadState (Map (Ref c) b) m, CanHaveChildren c)
+         => (Ref c -> c -> [b] -> b) -> Program c -> m ()
 traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
   where
     getVal ref = get >>= \precomputed ->
@@ -225,15 +220,15 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
 
     eval ref = do
       let c = lookupC ref prog
-      kids <- mapM getVal (children c)
-      result <- liftIO $ construct ref c kids
+      kids   <- mapM getVal (children c)
+      let result = construct ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG
-      reportl ("[traverse] " 
-                ++ show ref 
-                ++ show (unRef <$> children c) 
-                ++ " result = " 
-                ++ show result)
+      traceM ("[traverse] " 
+             ++ show ref 
+             ++ show (unRef <$> children c) 
+             ++ " result = " 
+             ++ show result)
 #endif
       return result
 
@@ -245,6 +240,9 @@ reportl = liftIO . putStrLn
 
 err :: String -> String -> a
 err name warning = error $ "[" ++ name ++ "] " ++ warning
+
+(!) :: (Show k, Show v, Ord k) => Map k v -> k -> v
+(!) = violentLookup
 
 violentLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
 violentLookup m k = case M.lookup k m of

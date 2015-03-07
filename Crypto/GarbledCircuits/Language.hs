@@ -12,7 +12,7 @@ module Crypto.GarbledCircuits.Language
 where
 
 import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Util (evalProg, err, lookupC)
+import Crypto.GarbledCircuits.Util hiding (nextRef)
 
 import           Control.Monad.State
 import qualified Data.Bits
@@ -84,20 +84,20 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-evalCirc :: Program Circ -> [Bool] -> IO [Bool]
+evalCirc :: Program Circ -> [Bool] -> [Bool]
 evalCirc prog inps = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
-    reconstruct :: Ref Circ -> Circ -> [Bool] -> IO Bool
+    reconstruct :: Ref Circ -> Circ -> [Bool] -> Bool
     reconstruct _ (Input id) [] = case M.lookup id inputs of
-      Just b  -> return b
+      Just b  -> b
       Nothing -> err "reconstruct" ("no input with id " ++ show id)
-    reconstruct _ (Const x) []    = return x
-    reconstruct _ (Not _)   [x]   = return $ Prelude.not x
-    reconstruct _ (Xor _ _) [x,y] = return $ Data.Bits.xor x y
-    reconstruct _ (And _ _) [x,y] = return $ x && y
-    reconstruct _ (Or _ _)  [x,y] = return $ x || y
+    reconstruct _ (Const x) []    = x
+    reconstruct _ (Not _)   [x]   = Prelude.not x
+    reconstruct _ (Xor _ _) [x,y] = Data.Bits.xor x y
+    reconstruct _ (And _ _) [x,y] = x && y
+    reconstruct _ (Or _ _)  [x,y] = x || y
     reconstruct _ _ _ = err "reconstruct" "unrecognized pattern"
 
 --------------------------------------------------------------------------------
