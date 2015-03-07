@@ -3,6 +3,7 @@ module Crypto.GarbledCircuits.Encryption
     enc
   , dec
   , genKey
+  , genR
   , randBlock
   , randBool
   , updateKey
@@ -14,12 +15,12 @@ import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
 import qualified Data.ByteString    as BS
+import           Control.Applicative
 import           Control.Monad.State
 import           Crypto.Cipher.AES
 import           Crypto.Random
 import           Data.Bits ((.&.), (.|.))
 import qualified Data.Bits          as Bits
-import           Data.Functor
 import qualified Data.Serialize     as Ser
 import           Data.Word
 
@@ -44,7 +45,7 @@ enc key gateRef x y z = encryptECB key (BS.append k tweak) `xor` k `xor` z
     double c = BS.pack result
       where
         (xs, carry) = shiftLeft (BS.unpack c)
-        result      = if carry > 0 then xor' xs irreducible else xs
+        result      = if carry > 0 then xorWords xs irreducible else xs
 
     irreducible :: [Word8]
     irreducible = replicate 15 0 ++ [86]
@@ -61,6 +62,9 @@ dec = enc
 
 genKey :: Garble AES
 genKey = initAES <$> randBlock
+
+genR :: Garble Wirelabel
+genR = Wirelabel True <$> randBlock
 
 randBlock :: Garble Ciphertext
 randBlock = do
@@ -80,5 +84,5 @@ randBool = do
 updateKey :: AES -> Garble ()
 updateKey k = lift.lift $ modify (\st -> st { ctx_key = k })
 
-updateR :: Ciphertext -> Garble ()
+updateR :: Wirelabel -> Garble ()
 updateR r = lift.lift $ modify (\st -> st { ctx_r = r })

@@ -53,17 +53,14 @@ data Wirelabel = Wirelabel { wl_col :: Color
                            , wl_val :: Ciphertext
                            } deriving (Eq, Ord)
 
-data WirelabelPair = WirelabelPair { wlp_true  :: Wirelabel
-                                   , wlp_false :: Wirelabel
-                                   } deriving (Show, Eq, Ord)
+type WirelabelPair = (Wirelabel, Wirelabel)
 
-type GarbledGateTable = [((Color,Color), Wirelabel)]
+type GarbledTable = [((Color,Color), Wirelabel)]
 
 data GarbledGate = GarbledInput InputId
-                 | GarbledGate { gate_inpx  :: Ref GarbledGate
-                               , gate_inpy  :: Ref GarbledGate
-                               , gate_table :: GarbledGateTable
-                               } deriving (Show, Eq, Ord)
+                 | GarbledXor  (Ref GarbledGate) (Ref GarbledGate)
+                 | GarbledGate (Ref GarbledGate) (Ref GarbledGate) GarbledTable
+                 deriving (Show, Eq, Ord)
 
 type Garble = StateT (Program GarbledGate)
                 (StateT SystemRNG
@@ -74,7 +71,7 @@ data Context = Context { ctx_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
                        , ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
                        , ctx_truth :: Map Wirelabel Bool
                        , ctx_key   :: AES
-                       , ctx_r     :: Ciphertext
+                       , ctx_r     :: Wirelabel
                        }
 
 --------------------------------------------------------------------------------
@@ -116,8 +113,9 @@ instance Show TruthTable where
     where bit b = if b then '1' else '0'
 
 instance CanHaveChildren GarbledGate where
-  children (GarbledInput _) = []
-  children g = [gate_inpx g, gate_inpy g]
+  children (GarbledInput _)    = []
+  children (GarbledGate x y _) = [x,y]
+  children (GarbledXor x y)    = [x,y]
 
 instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"
@@ -146,3 +144,9 @@ truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]
 
 emptyContext :: Context
 emptyContext = Context M.empty M.empty M.empty undefined undefined
+
+wlp_true :: WirelabelPair -> Wirelabel
+wlp_true = snd
+
+wlp_false :: WirelabelPair -> Wirelabel
+wlp_false = fst

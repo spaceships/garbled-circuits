@@ -19,7 +19,8 @@ module Crypto.GarbledCircuits.Util
   , writep
   , violentLookup
   , xor
-  , xor'
+  , xorWords
+  , xorWires
   )
 where
 
@@ -63,8 +64,15 @@ progSize = M.size . env_deref . prog_env
 xor :: Ciphertext -> Ciphertext -> Ciphertext
 xor x y = BS.pack $ BS.zipWith Data.Bits.xor x y
 
-xor' :: [Word8] -> [Word8] -> [Word8]
-xor' x y = zipWith Data.Bits.xor x y
+xorWords :: [Word8] -> [Word8] -> [Word8]
+xorWords x y = zipWith Data.Bits.xor x y
+
+-- xor ALL info in a wirelabel
+xorWires :: Wirelabel -> Wirelabel -> Wirelabel
+xorWires x y = Wirelabel { wl_val = val, wl_col = col }
+  where
+    val = xor (wl_val x) (wl_val y)
+    col = Data.Bits.xor (wl_col x) (wl_col y)
 
 --------------------------------------------------------------------------------
 -- garbled gate helpers

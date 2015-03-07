@@ -60,6 +60,12 @@ circ_8BitAdder = circ_NBitAdder 8
 eval_2BitAdder :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
 eval_2BitAdder (x0,x1) (y0,y1) = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
 
+eval_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
+eval_2BitAdderTT (x0,x1) (y0,y1) = res
+  where
+    tt  = circ2tt (circ_NBitAdder 2)
+    res = evalTT tt [x0,x1,y0,y1]
+
 eval_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
 eval_2BitAdderGG (x0,x1) (y0,y1) = do
   gg <- garble (circ_NBitAdder 2)
