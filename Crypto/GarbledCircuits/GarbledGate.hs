@@ -66,17 +66,24 @@ enc key gateRef x y z = encryptECB key (B.append k tweak) `xor` k `xor` z
     xor :: Ciphertext -> Ciphertext -> Ciphertext
     xor x y = B.pack $ B.zipWith Data.Bits.xor x y
 
+    xor' :: [Word8] -> [Word8] -> [Word8]
+    xor' x y = zipWith Data.Bits.xor x y
+
     double :: Ciphertext -> Ciphertext
-    double = B.pack . fst . shiftLeft . B.unpack
+    double c = B.pack result
+      where
+        (xs, carry) = shiftLeft (B.unpack c)
+        result      = if carry > 0 then xor' xs irreducible else xs
+
+    irreducible :: [Word8]
+    irreducible = replicate 15 0 ++ [86]
 
     shiftLeft :: [Word8] -> ([Word8], Word8)
     shiftLeft []     = ([], 0)
     shiftLeft (x:xs) = let (xs', c) = shiftLeft xs
-                           (x', c') = f x c
-                       in (x':xs', c')
-      where
-        f :: Word8 -> Word8 -> (Word8, Word8)
-        f x c = let msb = shiftR x 7 in (shiftL x 1 .|. c, msb)
+                           msb = shiftR x 7
+                           x'  = shiftL x 1 .|. c
+                       in (x':xs', msb)
 
 dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Ciphertext -> Ciphertext
 dec = enc
