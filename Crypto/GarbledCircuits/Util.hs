@@ -11,6 +11,7 @@ module Crypto.GarbledCircuits.Util
   , lookupC
   , nextRef
   , progSize
+  , sel
   , topoSort
   , topoLevels
   , truthVals
@@ -18,6 +19,8 @@ module Crypto.GarbledCircuits.Util
   , word2Bits
   , writep
   , violentLookup
+  , xor
+  , xor'
   )
 where
 
@@ -25,10 +28,14 @@ import Crypto.GarbledCircuits.Types
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Data.Bits
+import           Data.Bits hiding (xor)
+import qualified Data.Bits
+import qualified Data.ByteString  as BS
 import           Data.Functor
 import qualified Data.Map as M
 import qualified Data.Set as S
+import           Data.Word
+import           Debug.Trace
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -53,6 +60,18 @@ pow2s = [ shift 1 x | x <- [0..] ]
 
 progSize :: Program c -> Int
 progSize = M.size . env_deref . prog_env
+
+xor :: Ciphertext -> Ciphertext -> Ciphertext
+xor x y = BS.pack $ BS.zipWith Data.Bits.xor x y
+
+xor' :: [Word8] -> [Word8] -> [Word8]
+xor' x y = zipWith Data.Bits.xor x y
+
+--------------------------------------------------------------------------------
+-- garbled gate helpers
+
+sel :: Bool -> WirelabelPair -> Wirelabel
+sel b = if b then wlp_true else wlp_false
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program

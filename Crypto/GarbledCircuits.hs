@@ -6,6 +6,7 @@ import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.GarbledGate
+import Crypto.GarbledCircuits.Evaluator
 import Crypto.GarbledCircuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
 
 import Control.Monad
@@ -62,7 +63,7 @@ eval_2BitAdder (x0,x1) (y0,y1) = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
 eval_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
 eval_2BitAdderGG (x0,x1) (y0,y1) = do
   gg <- garble (circ_NBitAdder 2)
-  evalGG [x0,x1,y0,y1] gg
+  evalLocal [x0,x1,y0,y1] gg
 
 eval_8BitAdder :: Word8 -> Word8 -> IO Word8
 eval_8BitAdder x y = bits2Word <$> result
@@ -79,5 +80,5 @@ eval_8BitAdderTT x y = bits2Word <$> result
 eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8
 eval_8BitAdderGG x y = do
     gg <- garble circ_8BitAdder
-    result <- evalGG (word2Bits x ++ word2Bits y) gg
+    result <- evalLocal (word2Bits x ++ word2Bits y) gg
     return (bits2Word result)

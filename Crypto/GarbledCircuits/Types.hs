@@ -2,14 +2,15 @@
 
 module Crypto.GarbledCircuits.Types where
 
-import           Numeric
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           Crypto.Cipher.AES
+import           Crypto.Random
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
-
-securityParameter :: Int
-securityParameter = 16 -- => 128-bit keys and wirelabels
+import           Numeric (showHex)
 
 type Map = M.Map
 type Set = S.Set
@@ -41,6 +42,9 @@ data TruthTable = TTInp InputId
                      , tt_inpy :: Ref TruthTable
                      }
 
+--------------------------------------------------------------------------------
+-- data types for garbling
+
 type Ciphertext = BS.ByteString
 
 type Color = Bool
@@ -60,6 +64,21 @@ data GarbledGate = GarbledInput InputId
                                , gate_inpy  :: Ref GarbledGate
                                , gate_table :: GarbledGateTable
                                } deriving (Show, Eq, Ord)
+
+type Garble = StateT (Program GarbledGate)
+                (StateT SystemRNG
+                  (ReaderT (Program TruthTable)
+                    (State Context)))
+
+data Context = Context { ctx_refs  :: Map (Ref TruthTable) (Ref GarbledGate)
+                       , ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
+                       , ctx_truth :: Map Wirelabel Bool
+                       , ctx_key   :: AES
+                       , ctx_r     :: Ciphertext
+                       }
+
+--------------------------------------------------------------------------------
+-- instances
 
 class CanHaveChildren c where
   children :: c -> [Ref c]
@@ -113,6 +132,9 @@ instance Show Wirelabel where
           pad s = if length s == 1 then '0' : s else s
           hex = flip showHex ""
 
+--------------------------------------------------------------------------------
+-- helpers
+
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }
 
@@ -121,3 +143,6 @@ emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
 
 truthVals :: (Bool -> Bool -> Bool) -> [Bool]
 truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]
+
+emptyContext :: Context
+emptyContext = Context M.empty M.empty M.empty undefined undefined
