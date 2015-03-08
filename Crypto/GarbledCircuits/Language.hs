@@ -2,6 +2,7 @@ module Crypto.GarbledCircuits.Language
   ( CircBuilder
   , buildCirc
   , evalCirc
+  , intern
   , c_input
   , c_xor
   , c_and
@@ -84,8 +85,8 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-evalCirc :: Program Circ -> [Bool] -> [Bool]
-evalCirc prog inps = evalProg reconstruct prog inps
+evalCirc :: [Bool] -> Program Circ -> [Bool]
+evalCirc inps prog = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 

@@ -1,10 +1,6 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
-  (
-    tt2gg
-  , garble
-  )
 where
 
 import Crypto.GarbledCircuits.Encryption
@@ -21,20 +17,23 @@ import qualified Data.Map         as M
 import qualified Data.Set         as Set
 
 --------------------------------------------------------------------------------
--- TODO: add optimizations: point-and-permute, free-xor, row-reduction, half-gates
+-- TODO: add optimizations: row-reduction, half-gates
 
 --------------------------------------------------------------------------------
 -- garble a truthtable program
 
+garble :: Program Circ -> IO (Program GarbledGate, Context)
+garble = tt2gg . circ2tt
+
 runGarble :: SystemRNG -> Program TruthTable -> Garble a -> (Program GarbledGate, Context)
-runGarble gen prog_tt = 
+runGarble gen prog_tt g = let ((_, p), c) = runGarble' gen prog_tt g in (p, c)
+
+runGarble' :: SystemRNG -> Program TruthTable -> Garble a -> ((a, Program GarbledGate), Context)
+runGarble' gen prog_tt = 
     flip runState emptyContext
   . flip runReaderT prog_tt
   . flip evalStateT gen
-  . flip execStateT emptyProg
-
-garble :: Program Circ -> IO (Program GarbledGate, Context)
-garble = tt2gg . circ2tt
+  . flip runStateT emptyProg
 
 tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
 tt2gg prog_tt = do
@@ -52,7 +51,7 @@ tt2gg prog_tt = do
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
 garbleGate tt_ref = lookupTT tt_ref >>= \case            -- get the TruthTable
     TTInp id -> do                                       -- if it's an input:
-      pair   <- input_wirelabels                         --   get new wirelabels
+      pair   <- new_wirelabels                           --   get new wirelabels
       gg_ref <- inputp (GarbledInput id)                 --   make it a gate, get a ref
       updateContext tt_ref gg_ref pair                   --   show our work
       return gg_ref                                      --   return the gate ref
@@ -87,28 +86,19 @@ encode ref tt xref yref
                     b <- [True, False]
                     let x = sel a x_pair
                         y = sel b y_pair
-                        z = sel ((tt_f tt) a b) out_pair
+                        z = sel (tt_f tt a b) out_pair
                         c = enc k ref x y (wl_val z)
                     return ((wl_col x, wl_col y), z { wl_val = c })
     return (GarbledGate xref yref gg_tab, out_pair)
 
-input_wirelabels :: Garble WirelabelPair
-input_wirelabels = do
+new_wirelabels :: Garble WirelabelPair
+new_wirelabels = do
     x <- randBlock
     c <- randBool
     r <- getR
     let w0 = Wirelabel { wl_col = c, wl_val = x }
         w1 = xorWires w0 r
     return (w0, w1)
-
-new_wirelabels :: Garble WirelabelPair
-new_wirelabels = do
-    x <- randBlock
-    y <- randBlock
-    c <- randBool
-    let wlt = Wirelabel { wl_col = c,     wl_val = x }
-        wlf = Wirelabel { wl_col = not c, wl_val = y }
-    return (wlf, wlt)
 
 --------------------------------------------------------------------------------
 -- helpers

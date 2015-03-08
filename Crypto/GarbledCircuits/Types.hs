@@ -27,6 +27,15 @@ data Circ = Input InputId
           | Or  (Ref Circ) (Ref Circ)
           deriving (Eq, Ord, Show)
 
+-- it is convenient to have a Circ without associated data
+data Operation = OInput
+               | OConst
+               | ONot
+               | OXor
+               | OAnd
+               | OOr
+               deriving (Show, Eq, Ord)
+
 data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
                  } deriving (Show)
@@ -150,3 +159,19 @@ wlp_true = snd
 
 wlp_false :: WirelabelPair -> Wirelabel
 wlp_false = fst
+
+circ2op :: Circ -> Operation
+circ2op (Input _) = OInput
+circ2op (Const _) = OConst
+circ2op (Not   _) = ONot
+circ2op (Xor _ _) = OXor
+circ2op (And _ _) = OAnd
+circ2op (Or  _ _) = OOr
+
+op2circ :: Operation -> [Ref Circ] -> Circ
+op2circ OXor [x,y] = Xor x y 
+op2circ OAnd [x,y] = And x y 
+op2circ OOr  [x,y] = Or  x y 
+op2circ ONot [x]   = Not x
+op2circ op   _     = error $ "[op2circ] only supports OXor, OAnd, OOr, ONot, got: " ++ show op
+

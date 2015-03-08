@@ -58,13 +58,13 @@ circ_8BitAdder :: Program Circ
 circ_8BitAdder = circ_NBitAdder 8
 
 eval_2BitAdder :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
-eval_2BitAdder (x0,x1) (y0,y1) = evalCirc (circ_NBitAdder 2) [x0,x1,y0,y1]
+eval_2BitAdder (x0,x1) (y0,y1) = evalCirc [x0,x1,y0,y1] (circ_NBitAdder 2)
 
 eval_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> [Bool]
 eval_2BitAdderTT (x0,x1) (y0,y1) = res
   where
     tt  = circ2tt (circ_NBitAdder 2)
-    res = evalTT tt [x0,x1,y0,y1]
+    res = evalTT [x0,x1,y0,y1] tt
 
 eval_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> IO [Bool]
 eval_2BitAdderGG (x0,x1) (y0,y1) = do
@@ -75,13 +75,13 @@ eval_2BitAdderGG (x0,x1) (y0,y1) = do
 eval_8BitAdder :: Word8 -> Word8 -> Word8
 eval_8BitAdder x y = bits2Word result
   where
-    result = evalCirc circ_8BitAdder (word2Bits x ++ word2Bits y)
+    result = evalCirc (word2Bits x ++ word2Bits y) circ_8BitAdder
 
 -- convert to TruthTable and use TruthTable evaluator
 eval_8BitAdderTT :: Word8 -> Word8 -> Word8
 eval_8BitAdderTT x y = bits2Word result
   where
-    result = evalTT (circ2tt circ_8BitAdder) (word2Bits x ++ word2Bits y)
+    result = evalTT (word2Bits x ++ word2Bits y) (circ2tt circ_8BitAdder)
 
 -- convert to GarbledGate and use GG evaluator
 eval_8BitAdderGG :: Word8 -> Word8 -> IO Word8

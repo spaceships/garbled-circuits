@@ -42,7 +42,7 @@ evalLocal inps (prog, ctx) =
       Nothing -> err "reconstruct" "no matching color"
       Just z  -> let new_val = dec (ctx_key ctx) ref x y (wl_val z)
                      new_wl  = z { wl_val = new_val }
-                 in new_wl
+                 in check new_wl
 
     reconstruct _ _ _ = err "reconstruct" "unknown pattern"
 
@@ -50,6 +50,11 @@ evalLocal inps (prog, ctx) =
     ungarble wl = case M.lookup wl (ctx_truth ctx) of
       Nothing -> err "ungarble" $ "unknown wirelabel: " ++ show wl
       Just b  -> b
+
+    check :: Wirelabel -> Wirelabel
+    check wl = case M.lookup wl (ctx_truth ctx) of
+      Just _  -> wl
+      Nothing -> err "check" ("no such wirelabel: " ++ show wl)
 
 --------------------------------------------------------------------------------
 -- helpers

@@ -17,15 +17,6 @@ import           Data.Functor
 --------------------------------------------------------------------------------
 -- transform circ to tt
 
--- it is convenient to have a Circ without associated data
-data Operation = OInput
-               | OConst
-               | ONot
-               | OXor
-               | OAnd
-               | OOr
-               deriving (Show, Eq, Ord)
-
 -- It is necessary to have a datatype that is neither a TruthTable nor a Circ,
 -- since there is not a 1-to-1 correspondence between Nullary/Unary/Binary gates
 -- and Binary gates. NotBinary gets passed around as we transform a Circ to a
@@ -111,8 +102,8 @@ circ2tt prog = prog'
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-evalTT :: Program TruthTable -> [Bool] -> [Bool]
-evalTT prog inps = evalProg reconstruct prog inps
+evalTT :: [Bool] -> Program TruthTable -> [Bool]
+evalTT inps prog = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
@@ -143,11 +134,3 @@ boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean (Or  _ _) = True
 boolean _ = False
-
-circ2op :: Circ -> Operation
-circ2op (Input _) = OInput
-circ2op (Const _) = OConst
-circ2op (Not   _) = ONot
-circ2op (Xor _ _) = OXor
-circ2op (And _ _) = OAnd
-circ2op (Or  _ _) = OOr
