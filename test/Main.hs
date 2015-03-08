@@ -4,6 +4,7 @@ module Main where
 
 import Data.Functor
 import Data.Monoid
+import Data.Word
 import Crypto.Random
 
 import Test.Framework
@@ -24,7 +25,9 @@ main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 
 tests = [ testProperty "TruthTable 2 bit adder is correct"            prop_2BitAdderTT
+        , testProperty "TruthTable 8 bit adder is correct"            prop_8BitAdderTT
         , testProperty "Garbled 2 bit adder is correct"               prop_2BitAdderGG
+        , testProperty "Garbled 8 bit adder is correct"               prop_8BitAdderGG
         , testProperty "The colors of input wirelabels are different" prop_inputColorsDifferent
         , testProperty "All boolean garbled gates area correct"       prop_booleanGatesCorrect
         , testProperty "We correctly evaluate a mixed circuit"        prop_mixedCirc
@@ -33,10 +36,19 @@ tests = [ testProperty "TruthTable 2 bit adder is correct"            prop_2BitA
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
 prop_2BitAdderTT x y = eval_2BitAdder x y == eval_2BitAdderTT x y
 
+prop_8BitAdderTT :: Word8 -> Word8 -> Bool
+prop_8BitAdderTT x y = eval_8BitAdder x y == eval_8BitAdderTT x y
+
 prop_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> Property
 prop_2BitAdderGG x y = monadicIO $ do
   let pt = eval_2BitAdder x y
   gg <- run $ eval_2BitAdderGG x y
+  assert (gg == pt)
+
+prop_8BitAdderGG :: Word8 -> Word8 -> Property
+prop_8BitAdderGG x y = monadicIO $ do
+  let pt = eval_8BitAdder x y
+  gg <- run $ eval_8BitAdderGG x y
   assert (gg == pt)
 
 prop_inputColorsDifferent :: Property
