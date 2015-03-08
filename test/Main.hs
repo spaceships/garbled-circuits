@@ -1,11 +1,13 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PackageImports, FlexibleInstances #-}
 
 module Main where
 
+import Control.Monad
+import "crypto-random" Crypto.Random
 import Data.Functor
 import Data.Monoid
 import Data.Word
-import Crypto.Random
+import qualified Data.Set as S
 
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
@@ -24,13 +26,13 @@ import Crypto.GarbledCircuits.Util
 main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 
-tests = [ testProperty "TruthTable 2 bit adder is correct"            prop_2BitAdderTT
-        , testProperty "TruthTable 8 bit adder is correct"            prop_8BitAdderTT
-        , testProperty "Garbled 2 bit adder is correct"               prop_2BitAdderGG
-        , testProperty "Garbled 8 bit adder is correct"               prop_8BitAdderGG
-        , testProperty "The colors of input wirelabels are different" prop_inputColorsDifferent
-        , testProperty "All boolean garbled gates area correct"       prop_booleanGatesCorrect
-        , testProperty "We correctly evaluate a mixed circuit"        prop_mixedCirc
+tests = [ 
+          testProperty "TruthTable 2 bit adder is correct"      prop_2BitAdderTT
+        , testProperty "TruthTable 8 bit adder is correct"      prop_8BitAdderTT
+        , testProperty "Garbled 2 bit adder is correct"         prop_2BitAdderGG
+        , testProperty "Garbled 8 bit adder is correct"         prop_8BitAdderGG
+        , testProperty "The colors of wirelabels are different" prop_colorsDifferent
+        , testProperty "Arbitrary circuit is correct"           prop_arbitraryCirc
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -51,32 +53,13 @@ prop_8BitAdderGG x y = monadicIO $ do
   gg <- run $ eval_8BitAdderGG x y
   assert (gg == pt)
 
-prop_inputColorsDifferent :: Property
-prop_inputColorsDifferent = testGarble new_wirelabels test
+prop_colorsDifferent :: Property
+prop_colorsDifferent = testGarble new_wirelabels test
   where
     test p = wl_col (wlp_true p) /= wl_col (wlp_false p)
 
-prop_booleanGatesCorrect :: Operation -> Bool -> Bool -> Property
-prop_booleanGatesCorrect op = testCirc circ_test
-  where
-    circ_test = buildCirc $ do
-      x <- c_input
-      y <- c_input
-      z <- intern (op2circ op [x,y])
-      return [z]
-
-prop_mixedCirc :: Bool -> Bool -> Bool -> Bool -> Property
-prop_mixedCirc = testCirc4 circ_test
-  where
-    circ_test = buildCirc $ do
-      r0 <- c_input
-      r1 <- c_input
-      r2 <- c_input
-      r3 <- c_input
-      r4 <- c_and r0 r2
-      r6 <- c_xor r1 r3
-      r7 <- c_xor r4 r6
-      return [r7]
+prop_arbitraryCirc :: Program Circ -> Property
+prop_arbitraryCirc = testCirc
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -90,27 +73,53 @@ testGarble g p = monadicIO $ do
           g
     assert (p x) 
 
+testCirc :: Program Circ -> Property
+testCirc circ_test = monadicIO $ do
+    garbled_test <- run (garble circ_test)
+    inp <- pick $ vector (inputSize circ_test)
+    let pt  = evalCirc  inp circ_test
+        gg  = evalLocal inp garbled_test
+    assert (gg == pt)
+
+--------------------------------------------------------------------------------
+-- instances
+
 instance Arbitrary Operation where
-  arbitrary = elements [OXor, OAnd, OOr]
+  arbitrary = elements [OXor, OAnd, OInput, ONot, OConst]
 
-testCirc :: Program Circ -> Bool -> Bool -> Property
-testCirc circ_test x y = monadicIO $ do
-    garbled_test <- run (garble circ_test)
-    let pt = evalCirc  [x,y] circ_test
-        gg = evalLocal [x,y] garbled_test
-    assert (gg == pt)
+instance Arbitrary (Program Circ) where
+  arbitrary = do
+    (x,_) <- mkCircuit =<< vector 20
+    (y,_) <- mkCircuit =<< vector 20
+    top   <- elements [OXor, OAnd]
+    let c' = do ref <- bindM2 (op2circ top) x y
+                return [ref]
+    return (buildCirc c')
+     
+mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
+mkCircuit (OInput:ops) = do
+    return (c_input, ops)
 
-testCirc3 :: Program Circ -> Bool -> Bool -> Bool -> Property
-testCirc3 circ_test x y z = monadicIO $ do
-    garbled_test <- run (garble circ_test)
-    let pt = evalCirc  [x,y,z] circ_test
-        gg = evalLocal [x,y,z] garbled_test
-    assert (gg == pt)
+mkCircuit (OConst:ops) = do
+    b <- arbitrary
+    return (c_const b, ops)
 
-testCirc4 :: Program Circ -> Bool -> Bool -> Bool -> Bool -> Property
-testCirc4 circ_test x y z w = monadicIO $ do
-    garbled_test <- run (garble circ_test)
-    let pt = evalCirc  [x,y,z,w] circ_test
-        gg = evalLocal [x,y,z,w] garbled_test
-    assert (gg == pt)
+mkCircuit (ONot:ops) = do
+    (child, ops') <- mkCircuit ops
+    return (c_not =<< child, ops')
 
+mkCircuit (op:ops) = do
+    (x,ops')  <- mkCircuit ops
+    (y,ops'') <- mkCircuit ops'
+    let c = bindM2 (op2circ op) x y
+    return (c, ops'')
+
+mkCircuit [] = return (c_input, [])
+
+op2circ :: Operation -> Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
+op2circ OXor x y = c_xor x y
+op2circ OAnd x y = c_and x y
+op2circ _    _ _ = err "op2circ" "unsupported operation"
+
+inputSize :: Program Circ -> Int
+inputSize = S.size . prog_inputs

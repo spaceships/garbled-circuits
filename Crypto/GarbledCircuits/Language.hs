@@ -98,7 +98,6 @@ evalCirc inps prog = evalProg reconstruct prog inps
     reconstruct _ (Not _)   [x]   = Prelude.not x
     reconstruct _ (Xor _ _) [x,y] = Data.Bits.xor x y
     reconstruct _ (And _ _) [x,y] = x && y
-    reconstruct _ (Or _ _)  [x,y] = x || y
     reconstruct _ _ _ = err "reconstruct" "unrecognized pattern"
 
 --------------------------------------------------------------------------------
@@ -113,9 +112,6 @@ c_input = do id  <- nextInputId
 c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
 c_xor x y = intern (Xor x y)
 
-c_or :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-c_or x y = intern (Or x y)
-
 c_and :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
 c_and x y = intern (And x y)
 
@@ -124,3 +120,11 @@ c_not x = intern (Not x)
 
 c_const :: Bool -> CircBuilder (Ref Circ)
 c_const b = intern (Const b)
+
+c_or :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
+c_or x y = do
+    r0 <- c_not x
+    r1 <- c_not y
+    r2 <- c_and r0 r1
+    c_not r2
+

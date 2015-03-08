@@ -1,11 +1,11 @@
-{-# LANGUAGE RecordWildCards, GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE PackageImports, RecordWildCards, GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Crypto.GarbledCircuits.Types where
 
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Crypto.Cipher.AES
-import           Crypto.Random
+import           "crypto-random" Crypto.Random
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -24,7 +24,6 @@ data Circ = Input InputId
           | Not (Ref Circ)
           | Xor (Ref Circ) (Ref Circ)
           | And (Ref Circ) (Ref Circ)
-          | Or  (Ref Circ) (Ref Circ)
           deriving (Eq, Ord, Show)
 
 -- it is convenient to have a Circ without associated data
@@ -33,7 +32,6 @@ data Operation = OInput
                | ONot
                | OXor
                | OAnd
-               | OOr
                deriving (Show, Eq, Ord)
 
 data Env c = Env { env_deref :: Map (Ref c) c
@@ -93,7 +91,6 @@ instance CanHaveChildren Circ where
   children (Not x  ) = [x]
   children (Xor x y) = [x,y]
   children (And x y) = [x,y]
-  children (Or  x y) = [x,y]
   children _         = []
 
 instance CanHaveChildren TruthTable where
@@ -166,12 +163,3 @@ circ2op (Const _) = OConst
 circ2op (Not   _) = ONot
 circ2op (Xor _ _) = OXor
 circ2op (And _ _) = OAnd
-circ2op (Or  _ _) = OOr
-
-op2circ :: Operation -> [Ref Circ] -> Circ
-op2circ OXor [x,y] = Xor x y 
-op2circ OAnd [x,y] = And x y 
-op2circ OOr  [x,y] = Or  x y 
-op2circ ONot [x]   = Not x
-op2circ op   _     = error $ "[op2circ] only supports OXor, OAnd, OOr, ONot, got: " ++ show op
-

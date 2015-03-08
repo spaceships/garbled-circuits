@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, NamedFieldPuns #-}
+{-# LANGUAGE PackageImports, LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
 where
@@ -11,7 +11,7 @@ import Crypto.GarbledCircuits.Util
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Crypto.Cipher.AES
-import           Crypto.Random
+import           "crypto-random" Crypto.Random
 import           Data.Functor
 import qualified Data.Map         as M
 import qualified Data.Set         as Set
@@ -49,20 +49,20 @@ tt2gg prog_tt = do
     return (prog_gg', ctx)
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
-garbleGate tt_ref = lookupTT tt_ref >>= \case            -- get the TruthTable
-    TTInp id -> do                                       -- if it's an input:
-      pair   <- new_wirelabels                           --   get new wirelabels
-      gg_ref <- inputp (GarbledInput id)                 --   make it a gate, get a ref
-      updateContext tt_ref gg_ref pair                   --   show our work
-      return gg_ref                                      --   return the gate ref
-    tt -> do                                             -- otherwise:
-      xref <- tt2gg_lookup (tt_inpx tt)                  --   get a ref to the left child gate
-      yref <- tt2gg_lookup (tt_inpy tt)                  --   get a ref to the right child gate
-      gg_ref <- nextRef                                  --   get a new ref
-      (gate, out_wl) <- encode gg_ref tt xref yref       --   create the garbled table
-      writep gg_ref gate                                 --   associate ref with garbled gate
-      updateContext tt_ref gg_ref out_wl                 --   show our work
-      return gg_ref                                      --   return the new gate ref
+garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
+    TTInp id -> do                                 -- if it's an input:
+      pair   <- new_wirelabels                     --   get new wirelabels
+      gg_ref <- inputp (GarbledInput id)           --   make it a gate, get a ref
+      updateContext tt_ref gg_ref pair             --   show our work
+      return gg_ref                                --   return the gate ref
+    tt -> do                                       -- otherwise:
+      xref   <- tt2gg_lookup (tt_inpx tt)          --   get a ref to the left child gate
+      yref   <- tt2gg_lookup (tt_inpy tt)          --   get a ref to the right child gate
+      gg_ref <- nextRef                            --   get a new ref
+      (gate, out_wl) <- encode gg_ref tt xref yref --   create the garbled table
+      writep gg_ref gate                           --   associate ref with garbled gate
+      updateContext tt_ref gg_ref out_wl           --   show our work
+      return gg_ref                                --   return the new gate ref
 
 encode :: Ref GarbledGate -- the ref for this gate (needed for encryption)
        -> TruthTable      -- the TruthTable

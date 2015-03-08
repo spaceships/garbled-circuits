@@ -1,3 +1,5 @@
+{-# LANGUAGE PackageImports #-}
+
 module Crypto.GarbledCircuits.Encryption
   (
     enc
@@ -18,7 +20,7 @@ import qualified Data.ByteString    as BS
 import           Control.Applicative
 import           Control.Monad.State
 import           Crypto.Cipher.AES
-import           Crypto.Random
+import           "crypto-random" Crypto.Random
 import           Data.Bits ((.&.), (.|.))
 import qualified Data.Bits          as Bits
 import qualified Data.Serialize     as Ser
