@@ -3,6 +3,7 @@
 module Crypto.GarbledCircuits.Util
   ( bindM2
   , bits2Word
+  , convertRef
   , err
   , evalProg
   , inputp
@@ -242,6 +243,9 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
 
 --------------------------------------------------------------------------------
 -- evil helpers
+
+convertRef :: Ref a -> Ref b
+convertRef = Ref . unRef
 
 reportl :: MonadIO m => String -> m ()
 reportl = liftIO . putStrLn

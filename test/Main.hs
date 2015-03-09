@@ -6,6 +6,7 @@ import Control.Monad
 import "crypto-random" Crypto.Random
 import Data.Functor
 import Data.Monoid
+import Data.Maybe
 import Data.Word
 import qualified Data.Set as S
 
@@ -18,6 +19,7 @@ import Test.QuickCheck.Monadic
 import Crypto.GarbledCircuits
 import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.GarbledGate
+import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Encryption
 import Crypto.GarbledCircuits.Evaluator
 import Crypto.GarbledCircuits.Types
@@ -75,7 +77,9 @@ testGarble g p = monadicIO $ do
 
 testCirc :: Program Circ -> Property
 testCirc circ_test = monadicIO $ do
-    garbled_test <- run (garble circ_test)
+    let tt = circ2tt circ_test
+    pre (isJust tt) -- ensure that the circ is garbleable
+    garbled_test <- run (tt2gg tt)
     inp <- pick $ vector (inputSize circ_test)
     let pt  = evalCirc  inp circ_test
         gg  = evalLocal inp garbled_test
@@ -89,12 +93,9 @@ instance Arbitrary Operation where
 
 instance Arbitrary (Program Circ) where
   arbitrary = do
-    (x,_) <- mkCircuit =<< vector 20
-    (y,_) <- mkCircuit =<< vector 20
-    top   <- elements [OXor, OAnd]
-    let c' = do ref <- bindM2 (op2circ top) x y
-                return [ref]
-    return (buildCirc c')
+    (x,_) <- mkCircuit =<< vector 40
+    let x' = do ref <- x; return [ref]
+    return (buildCirc x')
      
 mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
 mkCircuit (OInput:ops) = do

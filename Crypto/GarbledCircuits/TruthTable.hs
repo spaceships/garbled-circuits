@@ -24,25 +24,28 @@ data NotBinary = UNot (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)
 
-circ2tt :: Program Circ -> Program TruthTable
-circ2tt prog = prog'
+circ2tt :: Program Circ -> Maybe (Program TruthTable)
+circ2tt prog_circ = if success then Just prog_tt else Nothing
   where
-    prog' = execState (transform $ prog_outputs prog) emptyProg
+    (success, prog_tt) = runState (transform $ prog_outputs prog_circ) emptyProg
 
-    transform :: [Ref Circ] -> State (Program TruthTable) ()
+    transform :: [Ref Circ] -> State (Program TruthTable) Bool
     transform outs = do
-        mapM_ trans (S.toList $ prog_inputs prog)
+        mapM_ trans (S.toList $ prog_inputs prog_circ)
         eitherOuts <- mapM trans outs
-        let outs' = map check eitherOuts
-        modify (\p -> p { prog_outputs = outs' })
+        case sequence (map check eitherOuts) of
+          Nothing    -> return False
+          Just outs' -> do 
+              modify (\p -> p { prog_outputs = outs' })
+              return True
       where
-        check (Right ref) = ref
-        check (Left x)    = err "check" ("non binary top level gate: " ++ show x)
+        check (Right ref) = Just ref
+        check (Left x)    = Nothing
 
     --return a circ if it is a unary gate in order to fold it into its parent
     trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     trans ref = do
-      let circ = lookupC ref prog
+      let circ = lookupC ref prog_circ
       let op   = circ2op circ
       cs <- mapM trans (children circ)
       if boolean circ then do
@@ -108,8 +111,9 @@ foldConst op  _ _ = err "foldConst" "unrecognized operation"
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-evalTT :: [Bool] -> Program TruthTable -> [Bool]
-evalTT inps prog = evalProg reconstruct prog inps
+evalTT :: [Bool] -> Maybe (Program TruthTable) -> [Bool]
+evalTT _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
+evalTT inps (Just prog) = evalProg reconstruct prog inps
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 

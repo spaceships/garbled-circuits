@@ -35,16 +35,17 @@ runGarble' gen prog_tt =
   . flip evalStateT gen
   . flip runStateT emptyProg
 
-tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
-tt2gg prog_tt = do
+tt2gg :: Maybe (Program TruthTable) -> IO (Program GarbledGate, Context)
+tt2gg Nothing        = err "tt2gg" "received failed Program TruthTable"
+tt2gg (Just prog_tt) = do
     gen <- cprgCreate <$> createEntropyPool
     let (prog_gg, ctx) = runGarble gen prog_tt $ do
           updateKey =<< genKey
           updateR   =<< genR
-          -- we assume TT refs are topologically sorted
+          -- TT refs are topologically ordered
           mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt)))
-        outs     = map (violentLookup $ ctx_refs ctx) (prog_outputs prog_tt)
-        inps     = Set.map (violentLookup $ ctx_refs ctx) (prog_inputs prog_tt)
+        outs     = map convertRef (prog_outputs prog_tt)
+        inps     = Set.map convertRef (prog_inputs prog_tt)
         prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
     return (prog_gg', ctx)
 
@@ -56,9 +57,9 @@ garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
       updateContext tt_ref gg_ref pair             --   show our work
       return gg_ref                                --   return the gate ref
     tt -> do                                       -- otherwise:
-      xref   <- tt2gg_lookup (tt_inpx tt)          --   get a ref to the left child gate
-      yref   <- tt2gg_lookup (tt_inpy tt)          --   get a ref to the right child gate
       gg_ref <- nextRef                            --   get a new ref
+      let xref = convertRef (tt_inpx tt)           --   get a ref to the left child gate
+          yref = convertRef (tt_inpy tt)           --   get a ref to the right child gate
       (gate, out_wl) <- encode gg_ref tt xref yref --   create the garbled table
       writep gg_ref gate                           --   associate ref with garbled gate
       updateContext tt_ref gg_ref out_wl           --   show our work
@@ -115,13 +116,6 @@ getR = lift.lift $ gets ctx_r
 lookupTT :: Ref TruthTable -> Garble TruthTable
 lookupTT ref = asks (lookupC ref)
 
-tt2gg_lookup :: Ref TruthTable -> Garble (Ref GarbledGate)
-tt2gg_lookup ref = do
-    res <- lift.lift $ gets (M.lookup ref . ctx_refs)
-    case res of
-      Nothing  -> err "tt2gg_lookup" ("ref " ++ show ref ++ " has not been garbled")
-      Just ref -> return ref
-
 pairs_lookup :: Ref GarbledGate -> Garble WirelabelPair
 pairs_lookup ref = lift.lift $ gets (M.lookup ref . ctx_pairs) >>= \case
   Nothing   -> err "pairs_lookup" ("no ref: " ++ show ref)
@@ -129,14 +123,9 @@ pairs_lookup ref = lift.lift $ gets (M.lookup ref . ctx_pairs) >>= \case
 
 updateContext :: Ref TruthTable -> Ref GarbledGate -> WirelabelPair -> Garble ()
 updateContext reftt refgg pair = do
-  tt2gg_insert reftt refgg
   pairs_insert refgg pair
   truth_insert (wlp_true  pair) True
   truth_insert (wlp_false pair) False
-
-tt2gg_insert :: Ref TruthTable -> Ref GarbledGate -> Garble ()
-tt2gg_insert x y =
-  lift.lift $ modify (\st -> st { ctx_refs = M.insert x y (ctx_refs st) })
 
 pairs_insert :: Ref GarbledGate -> WirelabelPair -> Garble ()
 pairs_insert ref pair =
