@@ -9,7 +9,11 @@ expressed as a boolean circuit. Each gate of the circuit encrypts its output by
 using its input as keys. Since a party can only know a gate's output if it has
 the right input, only the correct output is recoverable.
 
-It uses AES (with AESNI support) for garbling, over 128-bit wirelabels.
+It garbles with AES128 (with AESNI support) [using this
+scheme](https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13).
+
+`garbled-circuits` supports the latest circuit-size optimizations, including
+[half-gates](http://eprint.iacr.org/2014/756). IN PROGRESS
 
 usage
 -----
@@ -76,7 +80,7 @@ assigned a true and a false wire label. This wirelabel is the input
 to the gates above in the circuit. Each gate encrypts its output with the
 correct input as keys.
 
-License
+license
 -------
 
 garbled-circuits is licenced under Apache 2.0
