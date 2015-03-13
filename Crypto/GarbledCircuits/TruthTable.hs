@@ -33,28 +33,27 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
     transform outs = do
         mapM_ trans (S.toList $ prog_inputs prog_circ)
         eitherOuts <- mapM trans outs
-        case sequence (map check eitherOuts) of
+        case mapM check eitherOuts of
           Nothing    -> return False
           Just outs' -> do 
               modify (\p -> p { prog_outputs = outs' })
               return True
       where
         check (Right ref) = Just ref
-        check (Left x)    = Nothing
+        check (Left _)    = Nothing
 
     --return a circ if it is a unary gate in order to fold it into its parent
     trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     trans ref = do
       let circ = lookupC ref prog_circ
-      let op   = circ2op circ
       cs <- mapM trans (children circ)
       if boolean circ then do
         let [x,y] = cs
         constructBin (circ2op circ) x y
       else case circ of
-        Not _    -> constructNot (head cs)
-        Const b  -> return $ Left (UConst b)
-        Input id -> Right <$> inputp (TTInp id)
+        Not _   -> constructNot (head cs)
+        Const b -> return $ Left (UConst b)
+        Input i -> Right <$> inputp (TTInp i)
         x        -> error ("[trans] unrecognized pattern: " ++ show x)
 
 --------------------------------------------------------------------------------
@@ -105,22 +104,22 @@ foldConst :: Operation -> Bool -> Ref TruthTable -> Either NotBinary (Ref TruthT
 foldConst OXor True  x = Left (UNot x)
 foldConst OXor False x = Right x
 foldConst OAnd True  x = Right x
-foldConst OAnd False x = Left (UConst False)
-foldConst op  _ _ = err "foldConst" "unrecognized operation"
+foldConst OAnd False _ = Left (UConst False)
+foldConst _ _ _ = err "foldConst" "unrecognized operation"
 
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
 evalTT :: [Bool] -> Maybe (Program TruthTable) -> [Bool]
 evalTT _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
-evalTT inps (Just prog) = evalProg reconstruct prog inps
+evalTT inps (Just prog) = evalProg reconstruct prog
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
     reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
-    reconstruct _ (TTInp id) [] = case M.lookup id inputs of
+    reconstruct _ (TTInp i) [] = case M.lookup i inputs of
       Just b  -> b
-      Nothing -> err "reconstruct" ("no input with id: " ++ show id)
+      Nothing -> err "reconstruct" ("no input with id: " ++ show i)
     reconstruct _ (TT {tt_f = f}) [x,y] = f x y
     reconstruct _ _ _ = err "reconstruct" "bad pattern"
 
@@ -128,11 +127,11 @@ evalTT inps (Just prog) = evalProg reconstruct prog inps
 -- helper functions
 
 flipYs :: TruthTable -> TruthTable
-flipYs (TTInp id) = TTInp id
+flipYs (TTInp i) = TTInp i
 flipYs tt = tt { tt_f = \x y -> tt_f tt x (not y) }
 
 flipXs :: TruthTable -> TruthTable
-flipXs (TTInp id) = TTInp id
+flipXs (TTInp i) = TTInp i
 flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
 
 boolean :: Circ -> Bool

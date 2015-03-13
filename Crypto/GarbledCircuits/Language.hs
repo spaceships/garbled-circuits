@@ -86,7 +86,7 @@ intern circ = do
 -- plaintext evaluator
 
 evalCirc :: [Bool] -> Program Circ -> [Bool]
-evalCirc inps prog = evalProg reconstruct prog inps
+evalCirc inps prog = evalProg reconstruct prog
   where
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
@@ -127,4 +127,3 @@ c_or x y = do
     r1 <- c_not y
     r2 <- c_and r0 r1
     c_not r2
-

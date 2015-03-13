@@ -19,13 +19,13 @@ import           Debug.Trace
 
 -- evaluate a garbled circuit locally
 evalLocal :: [Bool] -> (Program GarbledGate, Context) -> [Bool]
-evalLocal inps (prog, ctx) = 
+evalLocal inps (prog, ctx) =
 #ifdef DEBUG
     trace (showEnv prog ++ showPairs ctx) $
 #endif
     map ungarble result
   where
-    result   = evalProg reconstruct prog inpwires
+    result   = evalProg reconstruct prog
     inpwlps  = map (violentLookup $ ctx_pairs ctx) (Set.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
@@ -66,12 +66,12 @@ showEnv prog =
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
         GarbledInput id     -> show id ++ " " ++ outp ref ++ "\n"
-        GarbledGate x y tab -> show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n" 
+        GarbledGate x y tab -> show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ concatMap showTabElem tab
         GarbledXor  x y     -> "XOR " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
     showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ show wl ++ "\n"
     showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
-    outp r = case r `elemIndex` prog_outputs prog 
+    outp r = case r `elemIndex` prog_outputs prog
       of Just i -> "out" ++ show i; _ -> ""
 
 showPairs :: Context -> String
