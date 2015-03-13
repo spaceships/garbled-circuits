@@ -100,20 +100,20 @@ instance Eq TruthTable where
   TTInp a == TTInp b = a == b
   TTInp _ == TT {..} = False
   TT {..} == TTInp _ = False
-  a == b = let init = tt_inpx a == tt_inpx b && tt_inpy a == tt_inpy b
-               xs   = zipWith (==) (truthVals (tt_f a)) (truthVals (tt_f b))
-           in foldl (&&) init xs
+  a == b = let z  = tt_inpx a == tt_inpx b && tt_inpy a == tt_inpy b
+               xs = zipWith (==) (truthVals (tt_f a)) (truthVals (tt_f b))
+           in foldl (&&) z xs
 
 instance Ord TruthTable where
   TTInp a <= TTInp b = a <= b
   TTInp _ <= TT {..} = True
   TT {..} <= TTInp _ = False
-  a <= b = let init = tt_inpx a <= tt_inpx b || tt_inpy a <= tt_inpy b
-               xs   = zipWith (<=) (truthVals (tt_f a)) (truthVals (tt_f b))
-           in foldl (||) init xs
+  a <= b = let z  = tt_inpx a <= tt_inpx b || tt_inpy a <= tt_inpy b
+               xs = zipWith (<=) (truthVals (tt_f a)) (truthVals (tt_f b))
+           in foldl (||) z xs
 
 instance Show TruthTable where
-  show (TTInp id) = show id
+  show (TTInp i) = show i
   show (TT {tt_f = f}) = "TT" ++ map bit (truthVals f)
     where bit b = if b then '1' else '0'
 
@@ -126,7 +126,7 @@ instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"
 
 instance Show InputId where
-  show (InputId id) = "in" ++ show id
+  show (InputId i) = "in" ++ show i
 
 instance Show Wirelabel where
   show wl = "wl" ++ showCol (wl_col wl) ++ " " ++ hexStr

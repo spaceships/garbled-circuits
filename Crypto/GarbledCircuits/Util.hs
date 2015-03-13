@@ -34,9 +34,9 @@ import qualified Data.Bits
 import qualified Data.ByteString  as BS
 import           Data.Functor
 import qualified Data.Map as M
+import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import           Data.Word
-import           Debug.Trace
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -66,7 +66,7 @@ xor :: Ciphertext -> Ciphertext -> Ciphertext
 xor x y = BS.pack $ BS.zipWith Data.Bits.xor x y
 
 xorWords :: [Word8] -> [Word8] -> [Word8]
-xorWords x y = zipWith Data.Bits.xor x y
+xorWords = zipWith Data.Bits.xor
 
 -- xor ALL info in a wirelabel
 xorWires :: Wirelabel -> Wirelabel -> Wirelabel
@@ -113,9 +113,6 @@ inputp inp = do
   modify (\p -> p { prog_inputs = S.insert ref (prog_inputs p) })
   return ref
 
-outputp :: (Ord c, MonadState (Program c) m) => Ref c -> m ()
-outputp ref = modify (\p -> p { prog_outputs = prog_outputs p ++ [ref] })
-
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()
 writep ref circ = do
   prog <- get
@@ -132,17 +129,8 @@ lookp ref = do
     Nothing -> error "[lookp] no c"
     Just c  -> return c
 
-lookupRef :: Ord c => c -> Program c -> Ref c
-lookupRef c prog = case M.lookup c dedup of
-    Nothing  -> error "[lookupRef] no ref"
-    Just ref -> ref
-  where
-    dedup = env_dedup (prog_env prog)
-
 lookupC :: Ref c -> Program c -> c
-lookupC ref prog = case M.lookup ref deref of
-    Nothing -> error "[lookupC] no c"
-    Just c  -> c
+lookupC ref prog = fromMaybe (error "[lookupC] no c") (M.lookup ref deref)
   where
     deref = env_deref (prog_env prog)
 
@@ -165,16 +153,16 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
                          }
 
     loop :: CanHaveChildren c => Program c -> DFS c ()
-    loop prog = next >>= \case
-      Just ref -> visit prog ref >> loop prog
+    loop prg = next >>= \case
+      Just ref -> visit prg ref >> loop prg
       Nothing  -> return ()
 
     visit :: CanHaveChildren c => Program c -> Ref c -> DFS c ()
-    visit prog ref = do
+    visit prg ref = do
       done <- gets dfs_done
       when (S.notMember ref done) $ do
-        let circ = lookupC ref prog
-        mapM_ (visit prog) (children circ)
+        let circ = lookupC ref prg
+        mapM_ (visit prg) (children circ)
         mark ref
 
     next :: DFS c (Maybe (Ref c))
@@ -186,7 +174,7 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
         put st { dfs_todo = S.delete ref todo }
         return $ Just ref
       else
-        return $ Nothing
+        return Nothing
 
     mark :: Ref c -> DFS c ()
     mark ref = do
@@ -199,9 +187,9 @@ topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
   where
     update ref (set, deps) = 
       let kids = children (lookupC ref prog) 
-      in if any (flip S.member deps) kids
+      in if any (`S.member` deps) kids
          then Left  $ S.insert ref deps
-         else Right $ (S.insert ref set, S.insert ref deps)
+         else Right (S.insert ref set, S.insert ref deps)
 
     foldTopo [] ref = [(S.singleton ref, S.singleton ref)]
     foldTopo ((s,d):sets) ref = case update ref (s,d) of
@@ -212,8 +200,8 @@ topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
 -- polymorphic evaluation
 
 evalProg :: (Show b, CanHaveChildren c)
-         => (Ref c -> c -> [b] -> b) -> Program c -> [b] -> [b]
-evalProg construct prog inps = reverse outputs
+         => (Ref c -> c -> [b] -> b) -> Program c -> [b]
+evalProg construct prog = reverse outputs
   where
     resultMap = execState (traverse construct prog) M.empty
     outputs   = map (resultMap !) (prog_outputs prog)
@@ -246,9 +234,6 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
 
 convertRef :: Ref a -> Ref b
 convertRef = Ref . unRef
-
-reportl :: MonadIO m => String -> m ()
-reportl = liftIO . putStrLn
 
 err :: String -> String -> a
 err name warning = error $ "[" ++ name ++ "] " ++ warning

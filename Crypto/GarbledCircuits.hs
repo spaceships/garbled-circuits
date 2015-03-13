@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Crypto.GarbledCircuits where
 
 import Crypto.GarbledCircuits.Types
