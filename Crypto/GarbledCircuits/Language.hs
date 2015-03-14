@@ -46,10 +46,10 @@ lookupCirc circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
 
-lookupRef :: Ref Circ -> CircBuilder (Maybe Circ)
-lookupRef ref = do
-  derefEnv <- gets (env_deref . st_env)
-  return (M.lookup ref derefEnv)
+{-lookupRef :: Ref Circ -> CircBuilder (Maybe Circ)-}
+{-lookupRef ref = do-}
+  {-derefEnv <- gets (env_deref . st_env)-}
+  {-return (M.lookup ref derefEnv)-}
 
 insertRef :: Ref Circ -> Circ -> CircBuilder ()
 insertRef ref circ = do

@@ -1,16 +1,17 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
 module Crypto.GarbledCircuits.Util
-  ( bindM2
+  ( bitOr
+  , bindM2
   , bits2Word
   , convertRef
   , err
   , evalProg
-  , evalProgSt
   , inputp
   , internp
   , lookp
   , lookupC
+  , mask
   , nextRef
   , progSize
   , sel
@@ -22,7 +23,7 @@ module Crypto.GarbledCircuits.Util
   , violentLookup
   , xor
   , xorWords
-  , xorWires
+  , (!)
   )
 where
 
@@ -64,18 +65,20 @@ pow2s = [ shift 1 x | x <- [0..] ]
 progSize :: Program c -> Int
 progSize = M.size . env_deref . prog_env
 
-xor :: Ciphertext -> Ciphertext -> Ciphertext
-xor x y = BS.pack $ BS.zipWith Data.Bits.xor x y
+xor :: ByteString -> ByteString -> ByteString
+xor x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x) 
+                                                                     ++ " " ++ show (BS.length y))
+        | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
+
+bitOr :: ByteString -> ByteString -> ByteString
+bitOr x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
+          | otherwise = BS.pack $ BS.zipWith (.|.) x y
+
+mask :: Bool -> Wirelabel -> Wirelabel
+mask b wl = if b then wl else zeroWirelabel
 
 xorWords :: [Word8] -> [Word8] -> [Word8]
 xorWords = zipWith Data.Bits.xor
-
--- xor ALL info in a wirelabel
-xorWires :: Wirelabel -> Wirelabel -> Wirelabel
-xorWires x y = Wirelabel { wl_val = val, wl_col = col }
-  where
-    val = xor (wl_val x) (wl_val y)
-    col = Data.Bits.xor (wl_col x) (wl_col y)
 
 --------------------------------------------------------------------------------
 -- garbled gate helpers
@@ -222,44 +225,10 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
       let result = construct ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG
-      traceM ("[traverse] " 
-             ++ show ref 
-             ++ show (unRef <$> children c) 
-             ++ " result = " 
-             ++ show result)
+      traceM ("[traverse] " ++ show ref ++ show (unRef <$> children c) 
+             ++ " result = " ++ show result)
 #endif
       return result
-
--- evalProgSt and traverseSt use a stateful construct procedure
-evalProgSt :: (Show b, CanHaveChildren c)
-           => (Ref c -> c -> [b] -> State s b) -> Program c -> s -> [b]
-evalProgSt construct prog s = reverse outputs
-  where
-    resultMap = execState (traverseSt construct prog s) M.empty
-    outputs   = map (resultMap !) (prog_outputs prog)
-
-traverseSt :: (Show b, MonadState (Map (Ref c) b) m, CanHaveChildren c)
-           => (Ref c -> c -> [b] -> State s b) -> Program c -> s -> m ()
-traverseSt construct prog z = foldM_ eval z (M.keys (env_deref (prog_env prog)))
-  where
-    getVal ref = get >>= \precomputed ->
-      case M.lookup ref precomputed of
-        Nothing  -> err "traverse.getVal" ("unknown ref: " ++ show ref)
-        Just res -> return res
-
-    eval s ref = do
-      let c = lookupC ref prog
-      kids <- mapM getVal (children c)
-      let (result, s') = runState (construct ref c kids) s
-      modify (M.insert ref result)
-#ifdef DEBUG
-      traceM ("[traverse] " 
-             ++ show ref 
-             ++ show (unRef <$> children c) 
-             ++ " result = " 
-             ++ show result)
-#endif
-      return s
 
 --------------------------------------------------------------------------------
 -- evil helpers

@@ -6,6 +6,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
+import           Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -14,6 +15,7 @@ import           Numeric (showHex)
 
 type Map = M.Map
 type Set = S.Set
+type ByteString = BS.ByteString
 
 newtype Ref a = Ref { unRef :: Word64 } deriving (Enum, Ord, Eq)
 
@@ -52,13 +54,9 @@ data TruthTable = TTInp InputId
 --------------------------------------------------------------------------------
 -- data types for garbling
 
-type Ciphertext = BS.ByteString
-
 type Color = Bool
 
-data Wirelabel = Wirelabel { wl_col :: Color
-                           , wl_val :: Ciphertext
-                           } deriving (Eq, Ord)
+type Wirelabel = BS.ByteString
 
 type WirelabelPair = (Wirelabel, Wirelabel)
 
@@ -66,6 +64,7 @@ type GarbledTable = [((Color,Color), Wirelabel)]
 
 data GarbledGate = GarbledInput InputId
                  | GarbledXor  (Ref GarbledGate) (Ref GarbledGate)
+                 | GarbledAnd  (Ref GarbledGate) (Ref GarbledGate) Wirelabel Wirelabel
                  | GarbledGate (Ref GarbledGate) (Ref GarbledGate) GarbledTable
                  deriving (Show, Eq, Ord)
 
@@ -115,8 +114,8 @@ instance Ord TruthTable where
 
 instance Show TruthTable where
   show (TTInp i) = show i
-  show (TT {tt_f = f}) = "TT" ++ map bit (truthVals f)
-    where bit b = if b then '1' else '0'
+  show (TT {tt_f = f}) = "TT" ++ map bitc (truthVals f)
+    where bitc b = if b then '1' else '0'
 
 instance CanHaveChildren GarbledGate where
   children (GarbledInput _)    = []
@@ -129,15 +128,21 @@ instance Show (Ref c) where
 instance Show InputId where
   show (InputId i) = "in" ++ show i
 
-instance Show Wirelabel where
-  show wl = "wl" ++ showCol (wl_col wl) ++ " " ++ hexStr
-    where showCol b = if b then "1" else "0"
-          hexStr = concatMap (pad . hex) $ BS.unpack (wl_val wl)
-          pad s = if length s == 1 then '0' : s else s
-          hex = flip showHex ""
-
 --------------------------------------------------------------------------------
 -- helpers
+
+lsb :: Wirelabel -> Bool
+lsb wl = BS.last wl .&. 1 > 0
+
+zeroWirelabel :: Wirelabel
+zeroWirelabel = BS.replicate 16 0
+
+showWirelabel :: Wirelabel -> String
+showWirelabel wl = "wl" ++ showCol (lsb wl) ++ " " ++ hexStr
+    where showCol b = if b then "1" else "0"
+          hexStr = concatMap (pad . hex) $ BS.unpack wl
+          pad s = if length s == 1 then '0' : s else s
+          hex = flip showHex ""
 
 emptyProg :: Program c
 emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }
@@ -163,3 +168,4 @@ circ2op (Const _) = OConst
 circ2op (Not   _) = ONot
 circ2op (Xor _ _) = OXor
 circ2op (And _ _) = OAnd
+

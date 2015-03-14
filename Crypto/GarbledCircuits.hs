@@ -39,10 +39,10 @@ addBits xs ys = do
     builder xs ys f []
   where
     builder [] []         c outs = return (outs, c)
-    builder (x:xs) (y:ys) c outs = do
-      (out,c') <- add1Bit x y c
-      builder xs ys c' (out:outs)
-    builder xs ys _ _ = err "builder" ("lists of unequal length: " ++ show [xs,ys])
+    builder (a:as) (b:bs) c outs = do
+      (out,c') <- add1Bit a b c
+      builder as bs c' (out:outs)
+    builder as bs _ _ = err "builder" ("lists of unequal length: " ++ show [as,bs])
 
 circ_NBitAdder :: Int -> Program Circ
 circ_NBitAdder n = buildCirc $ do

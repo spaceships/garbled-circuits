@@ -1,8 +1,10 @@
 {-# LANGUAGE PackageImports, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
 import "crypto-random" Crypto.Random
+import Data.Functor
 import Data.Monoid
 import Data.Maybe
 import Data.Word
@@ -32,8 +34,10 @@ tests = [
         , testProperty "Garbled 2 bit adder is correct" prop_2BitAdderGG
         , testProperty "Garbled 8 bit adder is correct" prop_8BitAdderGG
         , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
+        , testProperty "lsb R always equals 1" prop_lsbOfR
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
         , testProperty "Arbitrary TruthTable only contains xors and ands" prop_arbitraryCirc
+        , testProperty "Encryption is correct" prop_encryptionCorrect
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -57,7 +61,10 @@ prop_8BitAdderGG x y = monadicIO $ do
 prop_colorsDifferent :: Property
 prop_colorsDifferent = testGarble newWirelabels test
   where
-    test p = wl_col (wlp_true p) /= wl_col (wlp_false p)
+    test p = lsb (wlp_true p) /= lsb (wlp_false p)
+
+prop_lsbOfR :: Property
+prop_lsbOfR = testGarble genR lsb
 
 prop_arbitraryCirc :: Program Circ -> Property
 prop_arbitraryCirc = testCirc
@@ -74,6 +81,16 @@ prop_onlyXorsAndAnds prog = isJust prog_tt ==> and res
       "TT1000" -> True
       "TT0110" -> True
       _        -> False
+
+prop_encryptionCorrect :: Property
+prop_encryptionCorrect = flip testGarble id $ do
+      k     <- genKey
+      (a,b) <- newWirelabels
+      z     <- wlp_true <$> newWirelabels
+      let ref = Ref 0
+          ct  = enc k ref a b z
+          res = dec k ref a b ct
+      return (z == res)
 
 --------------------------------------------------------------------------------
 -- helpers

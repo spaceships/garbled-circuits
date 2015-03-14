@@ -75,8 +75,8 @@ encode ref tt xref yref
     x_pair <- pairsLookup xref
     y_pair <- pairsLookup yref
     r      <- getR
-    let c0 = xorWires (wlp_false x_pair) (wlp_false y_pair)
-    return (GarbledXor xref yref, (c0, xorWires c0 r))
+    let c0 = wlp_false x_pair `xor` wlp_false y_pair
+    return (GarbledXor xref yref, (c0, c0 `xor` r))
 
   | otherwise = do
     k <- getKey
@@ -88,18 +88,15 @@ encode ref tt xref yref
                     let x = sel a x_pair
                         y = sel b y_pair
                         z = sel (tt_f tt a b) out_pair
-                        c = enc k ref x y (wl_val z)
-                    return ((wl_col x, wl_col y), z { wl_val = c })
+                        c = enc k ref x y z
+                    return ((lsb x, lsb y), c)
     return (GarbledGate xref yref gg_tab, out_pair)
 
 newWirelabels :: Garble WirelabelPair
 newWirelabels = do
-    x <- randBlock
-    c <- randBool
+    a <- randBlock
     r <- getR
-    let w0 = Wirelabel { wl_col = c, wl_val = x }
-        w1 = xorWires w0 r
-    return (w0, w1)
+    return (a, a `xor` r)
 
 --------------------------------------------------------------------------------
 -- helpers
