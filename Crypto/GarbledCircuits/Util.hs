@@ -6,6 +6,7 @@ module Crypto.GarbledCircuits.Util
   , convertRef
   , err
   , evalProg
+  , evalProgSt
   , inputp
   , internp
   , lookp
@@ -215,7 +216,6 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
       case M.lookup ref precomputed of
         Nothing  -> err "traverse.getVal" ("unknown ref: " ++ show ref)
         Just res -> return res
-
     eval ref = do
       let c = lookupC ref prog
       kids <- mapM getVal (children c)
@@ -229,6 +229,37 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
              ++ show result)
 #endif
       return result
+
+-- evalProgSt and traverseSt use a stateful construct procedure
+evalProgSt :: (Show b, CanHaveChildren c)
+           => (Ref c -> c -> [b] -> State s b) -> Program c -> s -> [b]
+evalProgSt construct prog s = reverse outputs
+  where
+    resultMap = execState (traverseSt construct prog s) M.empty
+    outputs   = map (resultMap !) (prog_outputs prog)
+
+traverseSt :: (Show b, MonadState (Map (Ref c) b) m, CanHaveChildren c)
+           => (Ref c -> c -> [b] -> State s b) -> Program c -> s -> m ()
+traverseSt construct prog z = foldM_ eval z (M.keys (env_deref (prog_env prog)))
+  where
+    getVal ref = get >>= \precomputed ->
+      case M.lookup ref precomputed of
+        Nothing  -> err "traverse.getVal" ("unknown ref: " ++ show ref)
+        Just res -> return res
+
+    eval s ref = do
+      let c = lookupC ref prog
+      kids <- mapM getVal (children c)
+      let (result, s') = runState (construct ref c kids) s
+      modify (M.insert ref result)
+#ifdef DEBUG
+      traceM ("[traverse] " 
+             ++ show ref 
+             ++ show (unRef <$> children c) 
+             ++ " result = " 
+             ++ show result)
+#endif
+      return s
 
 --------------------------------------------------------------------------------
 -- evil helpers

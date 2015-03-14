@@ -8,9 +8,10 @@ import Crypto.GarbledCircuits.Encryption
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
+import           Control.Monad.State
 import           Data.List (elemIndex)
-import qualified Data.Map         as M
-import qualified Data.Set         as Set
+import qualified Data.Map as M
+import qualified Data.Set as Set
 import           Debug.Trace
 
 --------------------------------------------------------------------------------
@@ -24,24 +25,24 @@ evalLocal inps (prog, ctx) =
 #endif
     map ungarble result
   where
-    result   = evalProg reconstruct prog
+    result   = evalProgSt reconstruct prog 0
     inpwlps  = map (violentLookup $ ctx_pairs ctx) (Set.toList $ prog_inputs prog)
     inpwires = zipWith sel inps inpwlps
     inputs   = zip (map InputId [0..]) inpwires
 
-    reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> Wirelabel
+    reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> State Int Wirelabel
 
     reconstruct _ (GarbledInput i) [] = case lookup i inputs of
       Nothing -> err "reconstruct" ("no input wire with id " ++ show i ++ "\n" ++ show inputs)
-      Just wl -> wl
+      Just wl -> return wl
 
-    reconstruct _ (GarbledXor _ _) [x,y] = xorWires x y
+    reconstruct _ (GarbledXor _ _) [x,y] = return $ xorWires x y
 
     reconstruct ref (GarbledGate _ _ tab) [x,y] = case lookup (wl_col x, wl_col y) tab of
       Nothing -> err "reconstruct" "no matching color"
       Just z  -> let new_val = dec (ctx_key ctx) ref x y (wl_val z)
                      new_wl  = z { wl_val = new_val }
-                 in check new_wl
+                 in return $ check new_wl
 
     reconstruct _ _ _ = err "reconstruct" "unknown pattern"
 

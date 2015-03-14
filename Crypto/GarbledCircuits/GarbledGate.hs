@@ -104,6 +104,13 @@ newWirelabels = do
 --------------------------------------------------------------------------------
 -- helpers
 
+nextIndex :: Garble Int
+nextIndex = do
+    c <- lift.lift $ get
+    let ctr = ctx_ctr c
+    lift.lift $ put c { ctx_ctr = succ ctr }
+    return ctr
+
 isXor :: TruthTable -> Bool
 isXor tab = show tab == "TT0110"
 

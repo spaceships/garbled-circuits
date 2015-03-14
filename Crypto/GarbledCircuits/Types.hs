@@ -78,6 +78,7 @@ data Context = Context { ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
                        , ctx_truth :: Map Wirelabel Bool
                        , ctx_key   :: AES
                        , ctx_r     :: Wirelabel
+                       , ctx_ctr   :: Int
                        }
 
 --------------------------------------------------------------------------------
@@ -148,7 +149,7 @@ truthVals :: (Bool -> Bool -> Bool) -> [Bool]
 truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]
 
 emptyContext :: Context
-emptyContext = Context M.empty M.empty undefined undefined
+emptyContext = Context M.empty M.empty undefined undefined 0
 
 wlp_true :: WirelabelPair -> Wirelabel
 wlp_true = snd
