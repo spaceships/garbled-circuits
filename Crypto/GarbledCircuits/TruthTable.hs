@@ -49,61 +49,44 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
       cs <- mapM trans (children circ)
       if boolean circ then do
         let [x,y] = cs
-        constructBin (circ2op circ) x y
+        mkBin (circ2op circ) x y
       else case circ of
-        Not _   -> constructNot (head cs)
+        Not _   -> return $ mkNot (head cs)
         Const b -> return $ Left (UConst b)
         Input i -> Right <$> inputp (TTInp i)
-        x        -> error ("[trans] unrecognized pattern: " ++ show x)
+        x       -> error ("[trans] unrecognized pattern: " ++ show x)
 
 --------------------------------------------------------------------------------
 -- combine elements - this is the meat of the TruthTable translator
 
-constructBin :: Operation
-             -> Either NotBinary (Ref TruthTable)
-             -> Either NotBinary (Ref TruthTable)
-             -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
-constructBin op (Right x) (Right y) = Right <$> internp (create op x y)
+mkBin :: Operation
+      -> Either NotBinary (Ref TruthTable)
+      -> Either NotBinary (Ref TruthTable)
+      -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
 
--- UConst children
-constructBin op (Right x) (Left (UConst b)) = return $ foldConst op b x
-constructBin op (Left (UConst b)) (Right y) = return $ foldConst op b y
+mkBin op (Right x)         (Right y)         = Right <$> internp (create op x y)
+mkBin op x                 (Left (UConst b)) = return $ foldConst op b x
+mkBin op (Left (UConst b)) y                 = return $ foldConst op b y
 
-constructBin op (Left (UConst b1)) (Left (UConst b2)) =
-  return $ Left $ case op of
-    OXor -> UConst $ b1 `xor` b2
-    OAnd -> UConst $ b1 && b2
-    _    -> err "constructBin" "unrecognized operation"
+mkBin op (Right x)       (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
+mkBin op (Left (UNot x)) (Right y)       = Right <$> internp (flipXs (create op x y))
+mkBin op (Left (UNot x)) (Left (UNot y)) = Right <$> internp (flipYs (flipXs (create op x y)))
 
-constructBin op (Left (UNot x)) (Left (UConst True)) = case op of
-    OAnd -> return $ Left (UNot x)
-    OXor -> return $ Right x
-    _    -> err "constructBin" "unrecognized operation"
-
--- UNot children
-constructBin op (Right x) (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
-constructBin op (Left (UNot x)) (Right y) = Right <$> internp (flipXs (create op x y))
-constructBin op (Left (UNot x)) (Left (UNot y)) =
-  Right <$> internp (flipYs (flipXs (create op x y)))
-
-constructBin op x y = err "constructBin"
-  ("unrecognized pattern:\n\t" ++ show op ++ "\n\t" ++ show x ++ "\n\t" ++ show y)
-
-constructNot :: Either NotBinary (Ref TruthTable)
-             -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
-constructNot (Right x)         = return $ Left (UNot x)
-constructNot (Left (UNot x))   = return $ Right x
-constructNot (Left (UConst b)) = return $ Left (UConst (not b))
+mkNot :: Either NotBinary (Ref TruthTable) -> Either NotBinary (Ref TruthTable)
+mkNot (Right x)         = Left (UNot x)
+mkNot (Left (UNot x))   = Right x
+mkNot (Left (UConst b)) = Left (UConst (not b))
 
 create :: Operation -> Ref TruthTable -> Ref TruthTable -> TruthTable
 create OXor x y = TT { tt_f = xor,  tt_inpx = x, tt_inpy = y }
 create OAnd x y = TT { tt_f = (&&), tt_inpx = x, tt_inpy = y }
 create op   _ _ = err "create" ("unrecognized operation" ++ show op)
 
-foldConst :: Operation -> Bool -> Ref TruthTable -> Either NotBinary (Ref TruthTable)
-foldConst OXor True  x = Left (UNot x)
-foldConst OXor False x = Right x
-foldConst OAnd True  x = Right x
+foldConst :: Operation -> Bool -> Either NotBinary (Ref TruthTable) 
+          -> Either NotBinary (Ref TruthTable)
+foldConst OXor True  x = mkNot x
+foldConst OXor False x = x
+foldConst OAnd True  x = x
 foldConst OAnd False _ = Left (UConst False)
 foldConst _ _ _ = err "foldConst" "unrecognized operation"
 

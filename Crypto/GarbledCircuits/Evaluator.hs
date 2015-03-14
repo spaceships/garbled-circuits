@@ -8,7 +8,6 @@ import Crypto.GarbledCircuits.Encryption
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
-import           Control.Monad
 import           Data.List (elemIndex)
 import qualified Data.Map         as M
 import qualified Data.Set         as Set
@@ -32,11 +31,11 @@ evalLocal inps (prog, ctx) =
 
     reconstruct :: Ref GarbledGate -> GarbledGate -> [Wirelabel] -> Wirelabel
 
-    reconstruct _ (GarbledInput id) [] = case lookup id inputs of
-      Nothing -> err "reconstruct" ("no input wire with id " ++ show id ++ "\n" ++ show inputs)
+    reconstruct _ (GarbledInput i) [] = case lookup i inputs of
+      Nothing -> err "reconstruct" ("no input wire with id " ++ show i ++ "\n" ++ show inputs)
       Just wl -> wl
 
-    reconstruct ref (GarbledXor _ _) [x,y] = xorWires x y
+    reconstruct _ (GarbledXor _ _) [x,y] = xorWires x y
 
     reconstruct ref (GarbledGate _ _ tab) [x,y] = case lookup (wl_col x, wl_col y) tab of
       Nothing -> err "reconstruct" "no matching color"
@@ -65,7 +64,7 @@ showEnv prog =
     ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog)))
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
-        GarbledInput id     -> show id ++ " " ++ outp ref ++ "\n"
+        GarbledInput i      -> show i ++ " " ++ outp ref ++ "\n"
         GarbledGate x y tab -> show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ concatMap showTabElem tab
         GarbledXor  x y     -> "XOR " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"

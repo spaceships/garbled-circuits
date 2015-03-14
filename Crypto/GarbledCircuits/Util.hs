@@ -37,6 +37,7 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import           Data.Word
+import           Debug.Trace
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -217,7 +218,7 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
 
     eval ref = do
       let c = lookupC ref prog
-      kids   <- mapM getVal (children c)
+      kids <- mapM getVal (children c)
       let result = construct ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG

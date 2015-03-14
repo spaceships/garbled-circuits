@@ -5,10 +5,9 @@ import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.GarbledGate
 import Crypto.GarbledCircuits.Evaluator
-import Crypto.GarbledCircuits.Util (violentLookup, bindM2, err, bits2Word, word2Bits)
+import Crypto.GarbledCircuits.Util (bindM2, err, bits2Word, word2Bits)
 
 import Control.Monad
-import Data.Functor
 import Data.Word
 
 -- circuit language - done

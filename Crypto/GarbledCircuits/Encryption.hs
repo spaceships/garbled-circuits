@@ -54,10 +54,10 @@ enc key gateRef x y z = encryptECB key (BS.append k tweak) `xor` k `xor` z
 
     shiftLeft :: [Word8] -> ([Word8], Word8)
     shiftLeft []     = ([], 0)
-    shiftLeft (x:xs) = let (xs', c) = shiftLeft xs
-                           msb = Bits.shiftR x 7
-                           x'  = Bits.shiftL x 1 .|. c
-                       in (x':xs', msb)
+    shiftLeft (b:bs) = let (bs', c) = shiftLeft bs
+                           msb = Bits.shiftR b 7
+                           b'  = Bits.shiftL b 1 .|. c
+                       in (b':bs', msb)
 
 dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Ciphertext -> Ciphertext
 dec = enc

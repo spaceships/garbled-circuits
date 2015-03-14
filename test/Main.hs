@@ -2,9 +2,7 @@
 
 module Main where
 
-import Control.Monad
 import "crypto-random" Crypto.Random
-import Data.Functor
 import Data.Monoid
 import Data.Maybe
 import Data.Word
@@ -13,7 +11,6 @@ import qualified Data.Set as S
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
-import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 
 import Crypto.GarbledCircuits
@@ -28,13 +25,15 @@ import Crypto.GarbledCircuits.Util
 main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 
+tests :: [Test]
 tests = [ 
-          testProperty "TruthTable 2 bit adder is correct"      prop_2BitAdderTT
-        , testProperty "TruthTable 8 bit adder is correct"      prop_8BitAdderTT
-        , testProperty "Garbled 2 bit adder is correct"         prop_2BitAdderGG
-        , testProperty "Garbled 8 bit adder is correct"         prop_8BitAdderGG
+          testProperty "TruthTable 2 bit adder is correct" prop_2BitAdderTT
+        , testProperty "TruthTable 8 bit adder is correct" prop_8BitAdderTT
+        , testProperty "Garbled 2 bit adder is correct" prop_2BitAdderGG
+        , testProperty "Garbled 8 bit adder is correct" prop_8BitAdderGG
         , testProperty "The colors of wirelabels are different" prop_colorsDifferent
-        , testProperty "Arbitrary circuit is correct"           prop_arbitraryCirc
+        , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
+        , testProperty "Arbitrary TruthTable only contains xors and ands" prop_arbitraryCirc
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -63,13 +62,26 @@ prop_colorsDifferent = testGarble new_wirelabels test
 prop_arbitraryCirc :: Program Circ -> Property
 prop_arbitraryCirc = testCirc
 
+prop_onlyXorsAndAnds :: Program Circ -> Property
+prop_onlyXorsAndAnds prog = isJust prog_tt ==> and res
+  where
+    prog_tt = circ2tt prog
+    res = evalProg construct (fromJust prog_tt)
+    construct _ tt kids = test tt && and kids
+
+    test (TTInp _)     = True
+    test tt@TT{} = case show tt of
+      "TT1000" -> True
+      "TT0110" -> True
+      _        -> False
+
 --------------------------------------------------------------------------------
 -- helpers
 
 testGarble :: Garble a -> (a -> Bool) -> Property
 testGarble g p = monadicIO $ do
     gen <- run $ fmap cprgCreate createEntropyPool
-    let ((x, prog), ctx) = runGarble' gen emptyProg $ do
+    let ((x, _), _) = runGarble' gen emptyProg $ do
           updateKey =<< genKey
           updateR   =<< genR
           g
@@ -98,7 +110,7 @@ instance Arbitrary (Program Circ) where
     return (buildCirc x')
      
 mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
-mkCircuit (OInput:ops) = do
+mkCircuit (OInput:ops) = 
     return (c_input, ops)
 
 mkCircuit (OConst:ops) = do

@@ -68,9 +68,9 @@ nextRef = do
 
 nextInputId :: CircBuilder InputId
 nextInputId = do
-  id <- gets st_nextInputId
-  modify (\st -> st { st_nextInputId = succ id })
-  return id
+  i <- gets st_nextInputId
+  modify (\st -> st { st_nextInputId = succ i })
+  return i
 
 intern :: Circ -> CircBuilder (Ref Circ)
 intern circ = do
@@ -91,9 +91,9 @@ evalCirc inps prog = evalProg reconstruct prog
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
     reconstruct :: Ref Circ -> Circ -> [Bool] -> Bool
-    reconstruct _ (Input id) [] = case M.lookup id inputs of
+    reconstruct _ (Input i) [] = case M.lookup i inputs of
       Just b  -> b
-      Nothing -> err "reconstruct" ("no input with id " ++ show id)
+      Nothing -> err "reconstruct" ("no input with id " ++ show i)
     reconstruct _ (Const x) []    = x
     reconstruct _ (Not _)   [x]   = Prelude.not x
     reconstruct _ (Xor _ _) [x,y] = Data.Bits.xor x y
@@ -104,8 +104,8 @@ evalCirc inps prog = evalProg reconstruct prog
 -- smart constructors
 
 c_input :: CircBuilder (Ref Circ)
-c_input = do id  <- nextInputId
-             ref <- intern (Input id)
+c_input = do i   <- nextInputId
+             ref <- intern (Input i)
              modify (\st -> st { st_inputs = S.insert ref (st_inputs st) })
              return ref
 

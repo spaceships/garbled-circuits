@@ -51,10 +51,10 @@ tt2gg (Just prog_tt) = do
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
 garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
-    TTInp id -> do                                 -- if it's an input:
+    TTInp i -> do                                  -- if it's an input:
       pair   <- new_wirelabels                     --   get new wirelabels
-      gg_ref <- inputp (GarbledInput id)           --   make it a gate, get a ref
-      updateContext tt_ref gg_ref pair             --   show our work
+      gg_ref <- inputp (GarbledInput i)            --   make it a gate, get a ref
+      updateContext gg_ref pair                    --   show our work
       return gg_ref                                --   return the gate ref
     tt -> do                                       -- otherwise:
       gg_ref <- nextRef                            --   get a new ref
@@ -62,7 +62,7 @@ garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
           yref = convertRef (tt_inpy tt)           --   get a ref to the right child gate
       (gate, out_wl) <- encode gg_ref tt xref yref --   create the garbled table
       writep gg_ref gate                           --   associate ref with garbled gate
-      updateContext tt_ref gg_ref out_wl           --   show our work
+      updateContext gg_ref out_wl                  --   show our work
       return gg_ref                                --   return the new gate ref
 
 encode :: Ref GarbledGate -- the ref for this gate (needed for encryption)
@@ -121,8 +121,8 @@ pairs_lookup ref = lift.lift $ gets (M.lookup ref . ctx_pairs) >>= \case
   Nothing   -> err "pairs_lookup" ("no ref: " ++ show ref)
   Just pair -> return pair
 
-updateContext :: Ref TruthTable -> Ref GarbledGate -> WirelabelPair -> Garble ()
-updateContext reftt refgg pair = do
+updateContext :: Ref GarbledGate -> WirelabelPair -> Garble ()
+updateContext refgg pair = do
   pairs_insert refgg pair
   truth_insert (wlp_true  pair) True
   truth_insert (wlp_false pair) False
