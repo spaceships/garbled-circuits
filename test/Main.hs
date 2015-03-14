@@ -31,7 +31,7 @@ tests = [
         , testProperty "TruthTable 8 bit adder is correct" prop_8BitAdderTT
         , testProperty "Garbled 2 bit adder is correct" prop_2BitAdderGG
         , testProperty "Garbled 8 bit adder is correct" prop_8BitAdderGG
-        , testProperty "The colors of wirelabels are different" prop_colorsDifferent
+        , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
         , testProperty "Arbitrary TruthTable only contains xors and ands" prop_arbitraryCirc
         ]
@@ -55,7 +55,7 @@ prop_8BitAdderGG x y = monadicIO $ do
   assert (gg == pt)
 
 prop_colorsDifferent :: Property
-prop_colorsDifferent = testGarble new_wirelabels test
+prop_colorsDifferent = testGarble newWirelabels test
   where
     test p = wl_col (wlp_true p) /= wl_col (wlp_false p)
 

@@ -52,7 +52,7 @@ tt2gg (Just prog_tt) = do
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
 garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
     TTInp i -> do                                  -- if it's an input:
-      pair   <- new_wirelabels                     --   get new wirelabels
+      pair   <- newWirelabels                      --   get new wirelabels
       gg_ref <- inputp (GarbledInput i)            --   make it a gate, get a ref
       updateContext gg_ref pair                    --   show our work
       return gg_ref                                --   return the gate ref
@@ -72,17 +72,17 @@ encode :: Ref GarbledGate -- the ref for this gate (needed for encryption)
        -> Garble (GarbledGate, WirelabelPair)
 encode ref tt xref yref 
   | isXor tt = do
-    x_pair <- pairs_lookup xref
-    y_pair <- pairs_lookup yref
+    x_pair <- pairsLookup xref
+    y_pair <- pairsLookup yref
     r      <- getR
     let c0 = xorWires (wlp_false x_pair) (wlp_false y_pair)
     return (GarbledXor xref yref, (c0, xorWires c0 r))
 
   | otherwise = do
     k <- getKey
-    x_pair   <- pairs_lookup xref
-    y_pair   <- pairs_lookup yref
-    out_pair <- new_wirelabels
+    x_pair   <- pairsLookup xref
+    y_pair   <- pairsLookup yref
+    out_pair <- newWirelabels
     let gg_tab = do a <- [True, False]
                     b <- [True, False]
                     let x = sel a x_pair
@@ -92,8 +92,8 @@ encode ref tt xref yref
                     return ((wl_col x, wl_col y), z { wl_val = c })
     return (GarbledGate xref yref gg_tab, out_pair)
 
-new_wirelabels :: Garble WirelabelPair
-new_wirelabels = do
+newWirelabels :: Garble WirelabelPair
+newWirelabels = do
     x <- randBlock
     c <- randBool
     r <- getR
@@ -116,21 +116,21 @@ getR = lift.lift $ gets ctx_r
 lookupTT :: Ref TruthTable -> Garble TruthTable
 lookupTT ref = asks (lookupC ref)
 
-pairs_lookup :: Ref GarbledGate -> Garble WirelabelPair
-pairs_lookup ref = lift.lift $ gets (M.lookup ref . ctx_pairs) >>= \case
-  Nothing   -> err "pairs_lookup" ("no ref: " ++ show ref)
+pairsLookup :: Ref GarbledGate -> Garble WirelabelPair
+pairsLookup ref = lift.lift $ gets (M.lookup ref . ctx_pairs) >>= \case
+  Nothing   -> err "pairsLookup" ("no ref: " ++ show ref)
   Just pair -> return pair
 
 updateContext :: Ref GarbledGate -> WirelabelPair -> Garble ()
 updateContext refgg pair = do
-  pairs_insert refgg pair
-  truth_insert (wlp_true  pair) True
-  truth_insert (wlp_false pair) False
+  pairsInsert refgg pair
+  truthInsert (wlp_true  pair) True
+  truthInsert (wlp_false pair) False
 
-pairs_insert :: Ref GarbledGate -> WirelabelPair -> Garble ()
-pairs_insert ref pair =
+pairsInsert :: Ref GarbledGate -> WirelabelPair -> Garble ()
+pairsInsert ref pair =
   lift.lift $ modify (\st -> st { ctx_pairs = M.insert ref pair (ctx_pairs st) })
 
-truth_insert :: Wirelabel -> Bool -> Garble ()
-truth_insert l b =
+truthInsert :: Wirelabel -> Bool -> Garble ()
+truthInsert l b =
   lift.lift $ modify (\st -> st { ctx_truth = M.insert l b (ctx_truth st) })
