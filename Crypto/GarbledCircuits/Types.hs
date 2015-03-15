@@ -118,9 +118,10 @@ instance Show TruthTable where
     where bitc b = if b then '1' else '0'
 
 instance CanHaveChildren GarbledGate where
-  children (GarbledInput _)    = []
-  children (GarbledGate x y _) = [x,y]
-  children (GarbledXor x y)    = [x,y]
+  children (GarbledInput _)     = []
+  children (GarbledGate x y _)  = [x,y]
+  children (GarbledXor x y)     = [x,y]
+  children (GarbledAnd x y _ _) = [x,y]
 
 instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"

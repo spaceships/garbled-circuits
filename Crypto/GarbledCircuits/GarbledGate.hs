@@ -70,27 +70,43 @@ encode :: Ref GarbledGate -- the ref for this gate (needed for encryption)
        -> Ref GarbledGate -- left child ref
        -> Ref GarbledGate -- right child ref
        -> Garble (GarbledGate, WirelabelPair)
-encode ref tt xref yref 
+encode ref tt aref bref 
   | isXor tt = do
-    x_pair <- pairsLookup xref
-    y_pair <- pairsLookup yref
+    a_pair <- pairsLookup aref
+    b_pair <- pairsLookup bref
     r      <- getR
-    let c0 = wlp_false x_pair `xor` wlp_false y_pair
-    return (GarbledXor xref yref, (c0, c0 `xor` r))
+    let c0 = wlp_false a_pair `xor` wlp_false b_pair
+    return (GarbledXor aref bref, (c0, c0 `xor` r))
+
+  | isAnd tt = do
+    k <- getKey
+    r <- getR
+    a_pair <- pairsLookup aref
+    b_pair <- pairsLookup bref
+    let pa = lsb (wlp_false a_pair)
+        pb = lsb (wlp_false b_pair)
+    j  <- nextIndex
+    j' <- nextIndex
+    let g  = hash k (wlp_false a_pair) j  `xor` hash k (wlp_true a_pair)  j `xor` mask pb r
+        wg = hash k (wlp_false a_pair) j  `xor` mask pa g
+        e  = hash k (wlp_false b_pair) j' `xor` hash k (wlp_true b_pair)  j' `xor` wlp_false a_pair
+        we = hash k (wlp_false b_pair) j' `xor` mask pb (e `xor` wlp_false a_pair)
+        w  = wg `xor` we
+    return (GarbledAnd aref bref g e, (w, w `xor` r))
 
   | otherwise = do
     k <- getKey
-    x_pair   <- pairsLookup xref
-    y_pair   <- pairsLookup yref
+    a_pair   <- pairsLookup aref
+    b_pair   <- pairsLookup bref
     out_pair <- newWirelabels
-    let gg_tab = do a <- [True, False]
-                    b <- [True, False]
-                    let x = sel a x_pair
-                        y = sel b y_pair
-                        z = sel (tt_f tt a b) out_pair
-                        c = enc k ref x y z
-                    return ((lsb x, lsb y), c)
-    return (GarbledGate xref yref gg_tab, out_pair)
+    let gg_tab = do x <- [True, False]
+                    y <- [True, False]
+                    let a = sel x a_pair
+                        b = sel y b_pair
+                        c = sel (tt_f tt x y) out_pair
+                        z = enc k ref a b c
+                    return ((lsb a, lsb b), z)
+    return (GarbledGate aref bref gg_tab, out_pair)
 
 newWirelabels :: Garble WirelabelPair
 newWirelabels = do
@@ -110,6 +126,9 @@ nextIndex = do
 
 isXor :: TruthTable -> Bool
 isXor tab = show tab == "TT0110"
+
+isAnd :: TruthTable -> Bool
+isAnd tab = show tab == "TT1000"
 
 getKey :: Garble AES
 getKey = lift.lift $ gets ctx_key

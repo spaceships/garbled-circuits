@@ -106,6 +106,9 @@ showEnv prog =
         GarbledGate x y tab -> show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ concatMap showTabElem tab
         GarbledXor  x y     -> "XOR " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
+        GarbledAnd  x y g e -> "AND " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
+                                      ++ "\t" ++ showWirelabel g ++ "\n"
+                                      ++ "\t" ++ showWirelabel e ++ "\n"
     showTabElem (col, wl) = "\t" ++ showColor col ++ " " ++ showWirelabel wl ++ "\n"
     showColor (b0, b1) = (if b0 then "1" else "0") ++ if b1 then "1" else "0"
     outp r = case r `elemIndex` prog_outputs prog

@@ -1,12 +1,14 @@
 module Crypto.GarbledCircuits.TruthTable
   ( circ2tt
   , evalTT
+  , tableTypes
   )
 where
 
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util (internp, inputp, lookupC, err, evalProg)
 
+import           Data.List (nub)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Control.Monad.State
@@ -121,3 +123,10 @@ boolean :: Circ -> Bool
 boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean _ = False
+
+tableTypes :: Program TruthTable -> [String]
+tableTypes prog = nub (map show (filter isGate elems))
+  where
+    isGate (TTInp _) = False
+    isGate _ = True
+    elems = M.keys (env_dedup (prog_env prog))
