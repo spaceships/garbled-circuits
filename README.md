@@ -9,11 +9,24 @@ expressed as a boolean circuit. Each gate of the circuit encrypts its output by
 using its input as keys. Since a party can only know a gate's output if it has
 the right input, only the correct output is recoverable.
 
-It garbles with AES128 (with AESNI support) [using this
-scheme](https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13).
-
 `garbled-circuits` supports the latest circuit-size optimizations, including
-[half-gates](http://eprint.iacr.org/2014/756). IN PROGRESS
+[half-gates](http://eprint.iacr.org/2014/756), and uses AES128 with AESNI
+support for hashing.
+
+todo list
+---------
+
+* circuit language - done
+* intermediate TruthTable representation - done
+* garbling
+    * AES hashing - done
+    * crypto rng - done
+    * garbling optimizations (free xor, half gates) - done
+* network architecture
+* oblivious transfer
+* a small standard library of circuits
+* haddock documentation
+* parallelize garbling and evaluation based on topological levels
 
 usage
 -----

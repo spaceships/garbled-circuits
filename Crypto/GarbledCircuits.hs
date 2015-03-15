@@ -10,19 +10,6 @@ import Crypto.GarbledCircuits.Util (bindM2, err, bits2Word, word2Bits)
 import Control.Monad
 import Data.Word
 
--- circuit language - done
--- intermediate TruthTable representation - done
--- garbled circuit representation - done
--- garbling
---    * add AES garbling - done
---    * crypto rng - done
---    * garbling optimizations (free xor, half gates) - done
--- network architecture
--- oblivious transfer
--- a small standard library of circuits
--- haddock documentation
--- parallelize garbling and evaluation based on topological levels
-
 --------------------------------------------------------------------------------
 -- 8 bit adder example
 
