@@ -58,8 +58,6 @@ data TruthTable = TTInp InputId
 --------------------------------------------------------------------------------
 -- data types for garbling
 
-type Color = Bool
-
 type Wirelabel = BS.ByteString
 
 type WirelabelPair = (Wirelabel, Wirelabel)

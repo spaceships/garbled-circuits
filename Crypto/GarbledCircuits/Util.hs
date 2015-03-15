@@ -234,7 +234,7 @@ topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
 
 evalProg :: (Show b, CanHaveChildren c)
          => (Ref c -> c -> [b] -> b) -> Program c -> [b]
-evalProg construct prog = reverse outputs
+evalProg construct prog = outputs
   where
     resultMap = execState (traverse construct prog) M.empty
     outputs   = map (resultMap !) (prog_outputs prog)

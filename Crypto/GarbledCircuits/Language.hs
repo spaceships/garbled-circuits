@@ -30,7 +30,7 @@ type CircBuilder a = State CircSt a
 
 buildCirc :: CircBuilder [Ref Circ] -> Program Circ
 buildCirc c = Program { prog_inputs  = st_inputs st
-                      , prog_outputs = outs
+                      , prog_outputs = reverse outs
                       , prog_env     = st_env st
                       }
   where
@@ -45,11 +45,6 @@ lookupCirc :: Circ -> CircBuilder (Maybe (Ref Circ))
 lookupCirc circ = do
   dedupEnv <- gets (env_dedup . st_env)
   return (M.lookup circ dedupEnv)
-
-{-lookupRef :: Ref Circ -> CircBuilder (Maybe Circ)-}
-{-lookupRef ref = do-}
-  {-derefEnv <- gets (env_deref . st_env)-}
-  {-return (M.lookup ref derefEnv)-}
 
 insertRef :: Ref Circ -> Circ -> CircBuilder ()
 insertRef ref circ = do

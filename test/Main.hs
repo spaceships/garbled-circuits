@@ -64,7 +64,14 @@ prop_lsbOfR :: Property
 prop_lsbOfR = testGarble genR lsb
 
 prop_arbitraryCirc :: Program Circ -> Property
-prop_arbitraryCirc = testCirc
+prop_arbitraryCirc circ_test = monadicIO $ do
+    let tt = circ2tt circ_test
+    pre (isJust tt) -- ensure that the circ is garbleable
+    garbled_test <- run (tt2gg tt)
+    inp <- pick $ vector (inputSize circ_test)
+    let pt  = evalCirc  inp circ_test
+        gg  = evalLocal inp garbled_test
+    assert (gg == pt)
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -77,16 +84,6 @@ testGarble g p = monadicIO $ do
           updateR   =<< genR
           g
     assert (p x)
-
-testCirc :: Program Circ -> Property
-testCirc circ_test = monadicIO $ do
-    let tt = circ2tt circ_test
-    pre (isJust tt) -- ensure that the circ is garbleable
-    garbled_test <- run (tt2gg tt)
-    inp <- pick $ vector (inputSize circ_test)
-    let pt  = evalCirc  inp circ_test
-        gg  = evalLocal inp garbled_test
-    assert (gg == pt)
 
 --------------------------------------------------------------------------------
 -- instances
