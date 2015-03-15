@@ -63,9 +63,8 @@ type WirelabelPair = (Wirelabel, Wirelabel)
 type GarbledTable = [((Color,Color), Wirelabel)]
 
 data GarbledGate = GarbledInput InputId
-                 | GarbledXor  (Ref GarbledGate) (Ref GarbledGate)
-                 | GarbledAnd  (Ref GarbledGate) (Ref GarbledGate) Wirelabel Wirelabel
-                 | GarbledGate (Ref GarbledGate) (Ref GarbledGate) GarbledTable
+                 | FreeXor  (Ref GarbledGate) (Ref GarbledGate)
+                 | HalfGate (Ref GarbledGate) (Ref GarbledGate) Wirelabel Wirelabel
                  deriving (Show, Eq, Ord)
 
 type Garble = StateT (Program GarbledGate)
@@ -115,13 +114,11 @@ instance Ord TruthTable where
 instance Show TruthTable where
   show (TTInp i) = show i
   show (TT {tt_f = f}) = "TT" ++ map bitc (truthVals f)
-    where bitc b = if b then '1' else '0'
 
 instance CanHaveChildren GarbledGate where
-  children (GarbledInput _)     = []
-  children (GarbledGate x y _)  = [x,y]
-  children (GarbledXor x y)     = [x,y]
-  children (GarbledAnd x y _ _) = [x,y]
+  children (GarbledInput _)   = []
+  children (FreeXor  x y)     = [x,y]
+  children (HalfGate x y _ _) = [x,y]
 
 instance Show (Ref c) where
   show (Ref x) = "<" ++ show x ++ ">"
@@ -153,6 +150,9 @@ emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
 
 truthVals :: (Bool -> Bool -> Bool) -> [Bool]
 truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]
+
+bitc :: Bool -> Char
+bitc b = if b then '1' else '0'
 
 emptyContext :: Context
 emptyContext = Context M.empty M.empty undefined undefined 0

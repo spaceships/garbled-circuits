@@ -15,6 +15,8 @@ module Crypto.GarbledCircuits.Util
   , nextRef
   , progSize
   , sel
+  , showPairs
+  , showGG
   , topoSort
   , topoLevels
   , truthVals
@@ -35,11 +37,15 @@ import           Data.Bits hiding (xor)
 import qualified Data.Bits
 import qualified Data.ByteString  as BS
 import           Data.Functor
+import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import           Data.Word
-import           Debug.Trace
+
+#ifdef DEBUG
+import Debug.Trace
+#endif
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -85,6 +91,28 @@ xorWords = zipWith Data.Bits.xor
 
 sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false
+
+showGG :: Program GarbledGate -> String
+showGG prog =
+    "--------------------------------------------------------------------------------\n"
+    ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog)))
+  where
+    showGate (ref, gg) = show ref ++ ": " ++ case gg of
+        GarbledInput i      -> show i ++ " " ++ outp ref ++ "\n"
+        FreeXor  x y     -> "FREEXOR "  ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
+        HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
+                                      ++ "\t" ++ showWirelabel g ++ "\n"
+                                      ++ "\t" ++ showWirelabel e ++ "\n"
+    outp r = case r `elemIndex` prog_outputs prog
+      of Just i -> "out" ++ show i; _ -> ""
+
+showPairs :: Context -> String
+showPairs ctx =
+    "--------------------------------------------------------------------------------\n"
+    ++ "-- pairs \n" ++ concatMap showPair (M.toList (ctx_pairs ctx))
+  where
+    showPair (ref, pair) = show ref ++ ": true=" ++ showWirelabel (wlp_true pair)
+                                    ++ " false=" ++ showWirelabel (wlp_false pair) ++ "\n"
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program

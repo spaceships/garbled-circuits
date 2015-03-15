@@ -16,8 +16,8 @@ import Data.Word
 -- garbling
 --    * add AES garbling - done
 --    * crypto rng - done
---    * garbling optimizations (free xor, row reduction, half gates)
--- network
+--    * garbling optimizations (free xor, half gates) - done
+-- network architecture
 -- oblivious transfer
 -- a small standard library of circuits
 -- haddock documentation

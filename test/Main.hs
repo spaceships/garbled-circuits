@@ -4,7 +4,6 @@
 module Main where
 
 import "crypto-random" Crypto.Random
-import Data.Functor
 import Data.Monoid
 import Data.Maybe
 import Data.Word
@@ -36,8 +35,6 @@ tests = [
         , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
         , testProperty "lsb R always equals 1" prop_lsbOfR
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
-        {-, testProperty "Arbitrary TruthTable only contains xors and ands" prop_onlyXorsAndAnds-}
-        , testProperty "Encryption is correct" prop_encryptionCorrect
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -68,28 +65,6 @@ prop_lsbOfR = testGarble genR lsb
 
 prop_arbitraryCirc :: Program Circ -> Property
 prop_arbitraryCirc = testCirc
-
-{-prop_onlyXorsAndAnds :: Program Circ -> Property-}
-{-prop_onlyXorsAndAnds prog = isJust prog_tt ==> and res-}
-  {-where-}
-    {-prog_tt = circ2tt prog-}
-    {-res = evalProg construct (fromJust prog_tt)-}
-    {-construct _ tt kids = test tt && and kids-}
-    {-test (TTInp _)     = True-}
-    {-test tt@TT{} = case show tt of-}
-      {-"TT1000" -> True-}
-      {-"TT0110" -> True-}
-      {-_        -> False-}
-
-prop_encryptionCorrect :: Property
-prop_encryptionCorrect = flip testGarble id $ do
-      k     <- genKey
-      (a,b) <- newWirelabels
-      z     <- wlp_true <$> newWirelabels
-      let ref = Ref 0
-          ct  = enc k ref a b z
-          res = dec k ref a b ct
-      return (z == res)
 
 --------------------------------------------------------------------------------
 -- helpers

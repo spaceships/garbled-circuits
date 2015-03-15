@@ -1,6 +1,13 @@
 {-# LANGUAGE PackageImports, LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
+  ( garble
+  , tt2gg
+  , runGarble
+  , runGarble'
+  , printGG
+  , newWirelabels 
+  )
 where
 
 import Crypto.GarbledCircuits.Encryption
@@ -12,12 +19,11 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
+import qualified Data.Bits
+import           Data.Maybe (isJust)
 import           Data.Functor
-import qualified Data.Map         as M
-import qualified Data.Set         as Set
-
---------------------------------------------------------------------------------
--- TODO: add optimizations: row-reduction, half-gates
+import qualified Data.Map as M
+import qualified Data.Set as Set
 
 --------------------------------------------------------------------------------
 -- garble a truthtable program
@@ -60,25 +66,25 @@ garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
       gg_ref <- nextRef                            --   get a new ref
       let xref = convertRef (tt_inpx tt)           --   get a ref to the left child gate
           yref = convertRef (tt_inpy tt)           --   get a ref to the right child gate
-      (gate, out_wl) <- encode gg_ref tt xref yref --   create the garbled table
+      (gate, out_wl) <- encode tt xref yref --   create the garbled table
       writep gg_ref gate                           --   associate ref with garbled gate
       updateContext gg_ref out_wl                  --   show our work
       return gg_ref                                --   return the new gate ref
 
-encode :: Ref GarbledGate -- the ref for this gate (needed for encryption)
-       -> TruthTable      -- the TruthTable
+encode :: TruthTable      -- the TruthTable
        -> Ref GarbledGate -- left child ref
        -> Ref GarbledGate -- right child ref
        -> Garble (GarbledGate, WirelabelPair)
-encode ref tt aref bref 
+encode tt aref bref 
   | isXor tt = do
     a_pair <- pairsLookup aref
     b_pair <- pairsLookup bref
     r      <- getR
     let c0 = wlp_false a_pair `xor` wlp_false b_pair
-    return (GarbledXor aref bref, (c0, c0 `xor` r))
+    return (FreeXor aref bref, (c0, c0 `xor` r))
 
-  | isAnd tt = do
+  | halfGateCompatible tt = do -- the truth table is half-gate compatible
+    let Just (fg, a, b) = get_fg (tt_f tt)
     k <- getKey
     r <- getR
     a_pair <- pairsLookup aref
@@ -87,26 +93,14 @@ encode ref tt aref bref
         pb = lsb (wlp_false b_pair)
     j  <- nextIndex
     j' <- nextIndex
-    let g  = hash k (wlp_false a_pair) j  `xor` hash k (wlp_true a_pair)  j `xor` mask pb r
-        wg = hash k (wlp_false a_pair) j  `xor` mask pa g
-        e  = hash k (wlp_false b_pair) j' `xor` hash k (wlp_true b_pair)  j' `xor` wlp_false a_pair
-        we = hash k (wlp_false b_pair) j' `xor` mask pb (e `xor` wlp_false a_pair)
+    let g  = hash k (wlp_false a_pair) j  `xor` hash k (wlp_true a_pair)  j `xor` mask (Data.Bits.xor pb b) r
+        wg = hash k (sel pa a_pair) j     `xor` mask (fg pa pb) r
+        e  = hash k (wlp_false b_pair) j' `xor` hash k (wlp_true b_pair)  j' `xor` sel a a_pair
+        we = hash k (sel pb b_pair) j'
         w  = wg `xor` we
-    return (GarbledAnd aref bref g e, (w, w `xor` r))
+    return (HalfGate aref bref g e, (w, w `xor` r))
 
-  | otherwise = do
-    k <- getKey
-    a_pair   <- pairsLookup aref
-    b_pair   <- pairsLookup bref
-    out_pair <- newWirelabels
-    let gg_tab = do x <- [True, False]
-                    y <- [True, False]
-                    let a = sel x a_pair
-                        b = sel y b_pair
-                        c = sel (tt_f tt x y) out_pair
-                        z = enc k ref a b c
-                    return ((lsb a, lsb b), z)
-    return (GarbledGate aref bref gg_tab, out_pair)
+  | otherwise = err "encode" ("unsupported gate: " ++ show tt)
 
 newWirelabels :: Garble WirelabelPair
 newWirelabels = do
@@ -117,18 +111,29 @@ newWirelabels = do
 --------------------------------------------------------------------------------
 -- helpers
 
+isXor :: TruthTable -> Bool
+isXor tab = show tab == "TT0110"
+
+halfGateCompatible :: TruthTable -> Bool
+halfGateCompatible tt = isJust (get_fg (tt_f tt)) 
+
+get_fg :: (Bool -> Bool -> Bool) -> Maybe (Bool -> Bool -> Bool, Bool, Bool)
+get_fg tt = lookup (sig tt) tab
+  where
+    sig = map bitc . truthVals
+    fg a b c x y = Data.Bits.xor (Data.Bits.xor a x && Data.Bits.xor b y) c
+    tab = [(sig f, (f, a, b)) | a <- [True, False]
+                              , b <- [True, False]
+                              , c <- [True, False]
+                              , let f = fg a b c
+                              ]
+
 nextIndex :: Garble Int
 nextIndex = do
     c <- lift.lift $ get
     let ctr = ctx_ctr c
     lift.lift $ put c { ctx_ctr = succ ctr }
     return ctr
-
-isXor :: TruthTable -> Bool
-isXor tab = show tab == "TT0110"
-
-isAnd :: TruthTable -> Bool
-isAnd tab = show tab == "TT1000"
 
 getKey :: Garble AES
 getKey = lift.lift $ gets ctx_key
@@ -157,3 +162,8 @@ pairsInsert ref pair =
 truthInsert :: Wirelabel -> Bool -> Garble ()
 truthInsert l b =
   lift.lift $ modify (\st -> st { ctx_truth = M.insert l b (ctx_truth st) })
+
+printGG :: Program Circ -> IO ()
+printGG prog = do
+    (gc, _) <- garble prog
+    putStrLn (showGG gc)

@@ -70,8 +70,16 @@ mkBin op (Right x)         (Right y)         = Right <$> internp (create op x y)
 mkBin op x                 (Left (UConst b)) = return $ foldConst op b x
 mkBin op (Left (UConst b)) y                 = return $ foldConst op b y
 
-mkBin op (Right x)       (Left (UNot y)) = Right <$> internp (flipYs (create op x y))
-mkBin op (Left (UNot x)) (Right y)       = Right <$> internp (flipXs (create op x y))
+mkBin op (Right a) (Left (UNot b)) = case op of
+    OXor -> do w <- internp (create OXor a b)
+               z <- internp TT { tt_f = \x y -> not (x && y), tt_inpx = w, tt_inpy = w }
+               return $ Right z
+    _ -> Right <$> internp (flipYs (create op a b))
+
+mkBin op l@(Left (UNot a)) r@(Right b) = case op of
+    OXor -> mkBin op r l
+    _    -> Right <$> internp (flipXs (create op a b))
+
 mkBin op (Left (UNot x)) (Left (UNot y)) = Right <$> internp (flipYs (flipXs (create op x y)))
 
 mkNot :: Either NotBinary (Ref TruthTable) -> Either NotBinary (Ref TruthTable)

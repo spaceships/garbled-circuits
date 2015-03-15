@@ -1,9 +1,7 @@
 {-# LANGUAGE PackageImports #-}
 
 module Crypto.GarbledCircuits.Encryption
-  ( enc
-  , dec
-  , genKey
+  ( genKey
   , genR
   , hash
   , randBlock
@@ -31,30 +29,14 @@ import           Data.Word
 -- encryption and decryption for wirelabels
 
 -- The AES-based hash function from the halfgates paper (p8)
+-- Uses native hw instructions if available
 hash :: AES -> Wirelabel -> Int -> Wirelabel
 hash key x i = encryptECB key k `xor` k
   where
     k = double x `xor` pad 16 (Ser.encode i)
 
--- AES-based garbling. Uses native hw instructions if available. Source:
--- https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.BHKR13
--- garbling: pi(K) xor K xor M where K = 2A xor 4B xor T
---           where tweak = gateNum ++ colorX ++ colorY
---                 pi is publicly keyed block cipher (AES)
-enc :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Wirelabel -> Wirelabel
-enc key gateRef a b m = encryptECB key k `xor` k `xor` m
-  where
-    t = Ser.encode (unRef gateRef, bit (lsb a), bit (lsb b))
-    k = double a `xor` double (double b) `xor` t
-
-dec :: AES -> Ref GarbledGate -> Wirelabel -> Wirelabel -> Wirelabel -> Wirelabel
-dec = enc
-
 pad :: Int -> ByteString -> ByteString
 pad n ct = BS.append (BS.replicate (n - BS.length ct) 0) ct
-
-bit :: Bool -> Word32
-bit b = if b then 1 else 0
 
 double :: ByteString -> ByteString
 double c = BS.pack result
