@@ -23,6 +23,8 @@ import Crypto.GarbledCircuits.Evaluator
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
+import Example.Adder
+
 main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 

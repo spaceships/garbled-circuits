@@ -1,11 +1,10 @@
-module Crypto.GarbledCircuits where
+module Example.Adder where
 
-import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Language
-import Crypto.GarbledCircuits.TruthTable
-import Crypto.GarbledCircuits.GarbledGate
+import Crypto.GarbledCircuits
+import Crypto.GarbledCircuits.Util
 import Crypto.GarbledCircuits.Evaluator
-import Crypto.GarbledCircuits.Util (bindM2, err, bits2Word, word2Bits)
+import Crypto.GarbledCircuits.TruthTable
+import Crypto.GarbledCircuits.Types
 
 import Control.Monad
 import Data.Word

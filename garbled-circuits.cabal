@@ -12,6 +12,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
+  hs-source-dirs:      src
   exposed-modules:     Crypto.GarbledCircuits
                       ,Crypto.GarbledCircuits.Types
                       ,Crypto.GarbledCircuits.Util
@@ -37,6 +38,7 @@ test-suite test-garbled-circuits
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      test
+                      ,examples/adder
   build-depends:       base >=4.7 && <4.8
                       ,garbled-circuits
                       ,crypto-random
@@ -44,3 +46,20 @@ test-suite test-garbled-circuits
                       ,test-framework-quickcheck2
                       ,QuickCheck
                       ,containers
+
+--------------------------------------------------------------------------------
+-- example garbled circuit programs
+
+executable adder-garbler
+  hs-source-dirs:      examples/adder
+  main-is:             Garbler.hs
+  other-modules:       Example.Adder
+  build-depends:       base >=4.7 && <4.8
+                      ,garbled-circuits
+
+executable adder-evaluator
+  hs-source-dirs:      examples/adder
+  main-is:             Evaluator.hs
+  other-modules:       Example.Adder
+  build-depends:       base >=4.7 && <4.8
+                      ,garbled-circuits

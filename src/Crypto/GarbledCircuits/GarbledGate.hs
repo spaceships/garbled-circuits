@@ -23,6 +23,7 @@ import qualified Data.Bits
 import           Data.Functor
 import qualified Data.Map as M
 import qualified Data.Set as Set
+import           Data.Tuple (swap)
 
 --------------------------------------------------------------------------------
 -- garble a truthtable program
@@ -111,8 +112,8 @@ newWirelabels = do
 -- helpers
 
 maybeFlipWires :: Bool -> WirelabelPair -> WirelabelPair
-maybeFlipWires True (t,f) = (f,t)
-maybeFlipWires False p    = p
+maybeFlipWires True  = swap
+maybeFlipWires False = id
 
 isXor :: TruthTable -> Bool
 isXor tt = tt_f tt == XOR
