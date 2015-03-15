@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Crypto.GarbledCircuits.TruthTable
   ( circ2tt
   , evalTT
@@ -18,10 +20,7 @@ import           Data.Functor
 --------------------------------------------------------------------------------
 -- transform circ to tt
 
--- It is necessary to have a datatype that is neither a TruthTable nor a Circ,
--- since there is not a 1-to-1 correspondence between Nullary/Unary/Binary gates
--- and Binary gates. NotBinary gets passed around as we transform a Circ to a
--- TruthTable.
+-- NotBinary gets passed around as we transform a Circ to a TruthTable.
 data NotBinary = UNot (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)
@@ -37,7 +36,7 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
         eitherOuts <- mapM trans outs
         case mapM check eitherOuts of
           Nothing    -> return False
-          Just outs' -> do 
+          Just outs' -> do
               modify (\p -> p { prog_outputs = outs' })
               return True
       where
@@ -70,17 +69,9 @@ mkBin op (Right x)         (Right y)         = Right <$> internp (create op x y)
 mkBin op x                 (Left (UConst b)) = return $ foldConst op b x
 mkBin op (Left (UConst b)) y                 = return $ foldConst op b y
 
-mkBin op (Right a) (Left (UNot b)) = case op of
-    OXor -> do w <- internp (create OXor a b)
-               z <- internp TT { tt_f = \x y -> not (x && y), tt_inpx = w, tt_inpy = w }
-               return $ Right z
-    _ -> Right <$> internp (flipYs (create op a b))
-
-mkBin op l@(Left (UNot a)) r@(Right b) = case op of
-    OXor -> mkBin op r l
-    _    -> Right <$> internp (flipXs (create op a b))
-
-mkBin op (Left (UNot x)) (Left (UNot y)) = Right <$> internp (flipYs (flipXs (create op x y)))
+mkBin op (Right x)       (Left (UNot y)) = Right <$> internp (create op x y) { tt_negy = True }
+mkBin op (Left (UNot x)) (Right y)       = Right <$> internp (create op x y) { tt_negx = True }
+mkBin op (Left (UNot x)) (Left (UNot y)) = Right <$> internp (create op x y) { tt_negx = True, tt_negy = True }
 
 mkNot :: Either NotBinary (Ref TruthTable) -> Either NotBinary (Ref TruthTable)
 mkNot (Right x)         = Left (UNot x)
@@ -88,16 +79,16 @@ mkNot (Left (UNot x))   = Right x
 mkNot (Left (UConst b)) = Left (UConst (not b))
 
 create :: Operation -> Ref TruthTable -> Ref TruthTable -> TruthTable
-create OXor x y = TT { tt_f = xor,  tt_inpx = x, tt_inpy = y }
-create OAnd x y = TT { tt_f = (&&), tt_inpx = x, tt_inpy = y }
-create op   _ _ = err "create" ("unrecognized operation" ++ show op)
+create op x y = emptyTT { tt_f = op,  tt_inpx = x, tt_inpy = y }
 
-foldConst :: Operation -> Bool -> Either NotBinary (Ref TruthTable) 
+foldConst :: Operation -> Bool -> Either NotBinary (Ref TruthTable)
           -> Either NotBinary (Ref TruthTable)
-foldConst OXor True  x = mkNot x
-foldConst OXor False x = x
-foldConst OAnd True  x = x
-foldConst OAnd False _ = Left (UConst False)
+foldConst XOR True  x = mkNot x
+foldConst XOR False x = x
+foldConst AND True  x = x
+foldConst AND False _ = Left (UConst False)
+foldConst OR  False x = x
+foldConst OR  True  _ = Left (UConst True)
 foldConst _ _ _ = err "foldConst" "unrecognized operation"
 
 --------------------------------------------------------------------------------
@@ -111,25 +102,26 @@ evalTT inps (Just prog) = evalProg reconstruct prog
 
     reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
     reconstruct _ (TTInp i) [] = case M.lookup i inputs of
-      Just b  -> b
-      Nothing -> err "reconstruct" ("no input with id: " ++ show i)
-    reconstruct _ (TT {tt_f = f}) [x,y] = f x y
+        Just b  -> b
+        Nothing -> err "reconstruct" ("no input with id: " ++ show i)
+    reconstruct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] = 
+        let x' = if tt_negx then not x else x
+            y' = if tt_negy then not y else y
+        in eval tt_f x' y'
     reconstruct _ _ _ = err "reconstruct" "bad pattern"
+
+    eval XOR = xor
+    eval AND = (&&)
+    eval OR  = (||)
+    eval op  = err "evalTT" ("unknown binary gate: " ++ show op)
 
 --------------------------------------------------------------------------------
 -- helper functions
 
-flipYs :: TruthTable -> TruthTable
-flipYs (TTInp i) = TTInp i
-flipYs tt = tt { tt_f = \x y -> tt_f tt x (not y) }
-
-flipXs :: TruthTable -> TruthTable
-flipXs (TTInp i) = TTInp i
-flipXs tt = tt { tt_f = \x y -> tt_f tt (not x) y }
-
 boolean :: Circ -> Bool
 boolean (Xor _ _) = True
 boolean (And _ _) = True
+boolean (Or  _ _) = True
 boolean _ = False
 
 tableTypes :: Program TruthTable -> [String]

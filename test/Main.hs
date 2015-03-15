@@ -27,7 +27,7 @@ main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 
 tests :: [Test]
-tests = [ 
+tests = [
           testProperty "TruthTable 2 bit adder is correct" prop_2BitAdderTT
         , testProperty "TruthTable 8 bit adder is correct" prop_8BitAdderTT
         , testProperty "Garbled 2 bit adder is correct" prop_2BitAdderGG
@@ -76,7 +76,7 @@ testGarble g p = monadicIO $ do
           updateKey =<< genKey
           updateR   =<< genR
           g
-    assert (p x) 
+    assert (p x)
 
 testCirc :: Program Circ -> Property
 testCirc circ_test = monadicIO $ do
@@ -92,23 +92,23 @@ testCirc circ_test = monadicIO $ do
 -- instances
 
 instance Arbitrary Operation where
-  arbitrary = elements [OXor, OAnd, OInput, ONot, OConst]
+  arbitrary = elements [XOR, AND, OR, INPUT, NOT, CONST]
 
 instance Arbitrary (Program Circ) where
   arbitrary = do
     (x,_) <- mkCircuit =<< vector 40
     let x' = do ref <- x; return [ref]
     return (buildCirc x')
-     
+
 mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
-mkCircuit (OInput:ops) = 
+mkCircuit (INPUT:ops) =
     return (c_input, ops)
 
-mkCircuit (OConst:ops) = do
+mkCircuit (CONST:ops) = do
     b <- arbitrary
     return (c_const b, ops)
 
-mkCircuit (ONot:ops) = do
+mkCircuit (NOT:ops) = do
     (child, ops') <- mkCircuit ops
     return (c_not =<< child, ops')
 
@@ -121,8 +121,9 @@ mkCircuit (op:ops) = do
 mkCircuit [] = return (c_input, [])
 
 op2circ :: Operation -> Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-op2circ OXor x y = c_xor x y
-op2circ OAnd x y = c_and x y
+op2circ XOR x y = c_xor x y
+op2circ AND x y = c_and x y
+op2circ OR  x y = c_or  x y
 op2circ _    _ _ = err "op2circ" "unsupported operation"
 
 inputSize :: Program Circ -> Int

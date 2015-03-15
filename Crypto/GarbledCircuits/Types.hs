@@ -26,14 +26,16 @@ data Circ = Input InputId
           | Not (Ref Circ)
           | Xor (Ref Circ) (Ref Circ)
           | And (Ref Circ) (Ref Circ)
+          | Or  (Ref Circ) (Ref Circ)
           deriving (Eq, Ord, Show)
 
 -- it is convenient to have a Circ without associated data
-data Operation = OInput
-               | OConst
-               | ONot
-               | OXor
-               | OAnd
+data Operation = INPUT
+               | CONST
+               | NOT
+               | XOR
+               | AND
+               | OR
                deriving (Show, Eq, Ord)
 
 data Env c = Env { env_deref :: Map (Ref c) c
@@ -46,10 +48,12 @@ data Program c = Program { prog_inputs  :: Set (Ref c)
                          } deriving (Show)
 
 data TruthTable = TTInp InputId
-                | TT { tt_f    :: Bool -> Bool -> Bool
+                | TT { tt_f    :: Operation
                      , tt_inpx :: Ref TruthTable
                      , tt_inpy :: Ref TruthTable
-                     }
+                     , tt_negx :: Bool
+                     , tt_negy :: Bool
+                     } deriving (Ord, Eq, Show)
 
 --------------------------------------------------------------------------------
 -- data types for garbling
@@ -59,8 +63,6 @@ type Color = Bool
 type Wirelabel = BS.ByteString
 
 type WirelabelPair = (Wirelabel, Wirelabel)
-
-type GarbledTable = [((Color,Color), Wirelabel)]
 
 data GarbledGate = GarbledInput InputId
                  | FreeXor  (Ref GarbledGate) (Ref GarbledGate)
@@ -89,31 +91,12 @@ instance CanHaveChildren Circ where
   children (Not x  ) = [x]
   children (Xor x y) = [x,y]
   children (And x y) = [x,y]
+  children (Or  x y) = [x,y]
   children _         = []
 
 instance CanHaveChildren TruthTable where
   children (TT {tt_inpx = x, tt_inpy = y}) = [x,y]
   children (TTInp _) = []
-
-instance Eq TruthTable where
-  TTInp a == TTInp b = a == b
-  TTInp _ == TT {..} = False
-  TT {..} == TTInp _ = False
-  a == b = let z  = tt_inpx a == tt_inpx b && tt_inpy a == tt_inpy b
-               xs = zipWith (==) (truthVals (tt_f a)) (truthVals (tt_f b))
-           in foldl (&&) z xs
-
-instance Ord TruthTable where
-  TTInp a <= TTInp b = a <= b
-  TTInp _ <= TT {..} = True
-  TT {..} <= TTInp _ = False
-  a <= b = let z  = tt_inpx a <= tt_inpx b || tt_inpy a <= tt_inpy b
-               xs = zipWith (<=) (truthVals (tt_f a)) (truthVals (tt_f b))
-           in foldl (||) z xs
-
-instance Show TruthTable where
-  show (TTInp i) = show i
-  show (TT {tt_f = f}) = "TT" ++ map bitc (truthVals f)
 
 instance CanHaveChildren GarbledGate where
   children (GarbledInput _)   = []
@@ -164,9 +147,17 @@ wlp_false :: WirelabelPair -> Wirelabel
 wlp_false = fst
 
 circ2op :: Circ -> Operation
-circ2op (Input _) = OInput
-circ2op (Const _) = OConst
-circ2op (Not   _) = ONot
-circ2op (Xor _ _) = OXor
-circ2op (And _ _) = OAnd
+circ2op (Input _) = INPUT
+circ2op (Const _) = CONST
+circ2op (Not   _) = NOT
+circ2op (Xor _ _) = XOR
+circ2op (And _ _) = AND
+circ2op (Or  _ _) = OR
 
+emptyTT :: TruthTable
+emptyTT = TT { tt_f    = undefined
+             , tt_inpx = undefined
+             , tt_inpy = undefined
+             , tt_negx = False
+             , tt_negy = False
+             }

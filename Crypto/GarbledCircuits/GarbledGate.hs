@@ -6,7 +6,7 @@ module Crypto.GarbledCircuits.GarbledGate
   , runGarble
   , runGarble'
   , printGG
-  , newWirelabels 
+  , newWirelabels
   )
 where
 
@@ -20,7 +20,6 @@ import           Control.Monad.State
 import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
 import qualified Data.Bits
-import           Data.Maybe (isJust)
 import           Data.Functor
 import qualified Data.Map as M
 import qualified Data.Set as Set
@@ -35,7 +34,7 @@ runGarble :: SystemRNG -> Program TruthTable -> Garble a -> (Program GarbledGate
 runGarble gen prog_tt g = let ((_, p), c) = runGarble' gen prog_tt g in (p, c)
 
 runGarble' :: SystemRNG -> Program TruthTable -> Garble a -> ((a, Program GarbledGate), Context)
-runGarble' gen prog_tt = 
+runGarble' gen prog_tt =
     flip runState emptyContext
   . flip runReaderT prog_tt
   . flip evalStateT gen
@@ -75,20 +74,20 @@ encode :: TruthTable      -- the TruthTable
        -> Ref GarbledGate -- left child ref
        -> Ref GarbledGate -- right child ref
        -> Garble (GarbledGate, WirelabelPair)
-encode tt aref bref 
+encode tt aref bref
   | isXor tt = do
-    a_pair <- pairsLookup aref
-    b_pair <- pairsLookup bref
+    a_pair <- maybeFlipWires (tt_negx tt) <$> pairsLookup aref
+    b_pair <- maybeFlipWires (tt_negy tt) <$> pairsLookup bref
     r      <- getR
     let c0 = wlp_false a_pair `xor` wlp_false b_pair
     return (FreeXor aref bref, (c0, c0 `xor` r))
 
   | halfGateCompatible tt = do -- the truth table is half-gate compatible
-    let Just (fg, a, b) = get_fg (tt_f tt)
+    let (fg, a, b) = get_fg (tt_f tt)
     k <- getKey
     r <- getR
-    a_pair <- pairsLookup aref
-    b_pair <- pairsLookup bref
+    a_pair <- maybeFlipWires (tt_negx tt) <$> pairsLookup aref
+    b_pair <- maybeFlipWires (tt_negy tt) <$> pairsLookup bref
     let pa = lsb (wlp_false a_pair)
         pb = lsb (wlp_false b_pair)
     j  <- nextIndex
@@ -111,22 +110,23 @@ newWirelabels = do
 --------------------------------------------------------------------------------
 -- helpers
 
+maybeFlipWires :: Bool -> WirelabelPair -> WirelabelPair
+maybeFlipWires True (t,f) = (f,t)
+maybeFlipWires False p    = p
+
 isXor :: TruthTable -> Bool
-isXor tab = show tab == "TT0110"
+isXor tt = tt_f tt == XOR
 
 halfGateCompatible :: TruthTable -> Bool
-halfGateCompatible tt = isJust (get_fg (tt_f tt)) 
+halfGateCompatible tt = tt_f tt == AND || tt_f tt == OR
 
-get_fg :: (Bool -> Bool -> Bool) -> Maybe (Bool -> Bool -> Bool, Bool, Bool)
-get_fg tt = lookup (sig tt) tab
+get_fg :: Operation -> (Bool -> Bool -> Bool, Bool, Bool)
+get_fg op = case op of
+    AND -> (fg False False False, False, False)
+    OR  -> (fg True True True, True, True)
+    _   -> err "get_fg" ("unsupported op: " ++ show op)
   where
-    sig = map bitc . truthVals
     fg a b c x y = Data.Bits.xor (Data.Bits.xor a x && Data.Bits.xor b y) c
-    tab = [(sig f, (f, a, b)) | a <- [True, False]
-                              , b <- [True, False]
-                              , c <- [True, False]
-                              , let f = fg a b c
-                              ]
 
 nextIndex :: Garble Int
 nextIndex = do
