@@ -14,7 +14,9 @@ import           Control.Arrow (first, second)
 import           Control.Monad.State
 import           Control.Monad.Reader
 import           Crypto.Cipher.AES
+import           Data.Functor
 import qualified Data.Map as M
+import           Data.Maybe
 import qualified Data.Set as S
 
 #ifdef DEBUG
@@ -30,22 +32,23 @@ type Eval = ReaderT AES (State (Int, ResultMap))
 runEval :: AES -> ResultMap -> Eval a -> ResultMap
 runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 
-eval :: Program GarbledGate -> AES -> [Wirelabel] -> [Wirelabel]
-eval prog key inps =
+eval :: Program GarbledGate -> AES -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
+eval prog key inpA inpB =
 #ifdef DEBUG
     trace (showGG prog) result
 #else
     result
 #endif
   where
-    initialResults = M.fromList $ zip (S.toList (prog_inputs prog)) inps
+    initialResults = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA) `M.union`
+                     M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
     resultMap = runEval key initialResults (eval' prog)
     result    = map (resultMap !) (prog_outputs prog)
 
 eval' :: Program GarbledGate -> Eval ()
-eval' prog = mapM_ evalRef refs
+eval' prog = mapM_ evalRef (nonInputRefs prog)
   where
-    refs = filter (`S.notMember` prog_inputs prog) (M.keys (env_deref (prog_env prog)))
+
     evalRef ref = do
       let c = lookupC ref prog
       kids   <- mapM getResult (children c)
@@ -53,7 +56,7 @@ eval' prog = mapM_ evalRef refs
       insertResult ref result
 #ifdef DEBUG
       traceM ("[eval] " ++ show ref ++ show (unRef `fmap` children c)
-           ++ " result = " ++ showWirelabel result)
+          ++ " result = " ++ showWirelabel result)
 #endif
 
 construct :: GarbledGate -> [Wirelabel] -> Eval Wirelabel
@@ -66,7 +69,7 @@ construct (HalfGate _ _ g e) [a,b] = do
     let wg  = hash k a j1 `xor` (lsb a `mask` g)
         we  = hash k b j2 `xor` (lsb b `mask` (e `xor` a))
     return (wg `xor` we)
-construct _ _ = err "construct" "unknown pattern"
+construct gate args = err "construct" ("unknown pattern: \n" ++ show gate ++ "\n" ++ show args)
 
 nextIndex :: Eval Int
 nextIndex = do
@@ -75,10 +78,7 @@ nextIndex = do
     return c
 
 getResult :: Ref GarbledGate -> Eval Wirelabel
-getResult ref = gets snd >>= \precomputed ->
-  case M.lookup ref precomputed of
-    Nothing  -> err "getResult" ("unknown ref: " ++ show ref)
-    Just res -> return res
+getResult ref = fromMaybe (err "getResult" "no ref") <$> (M.lookup ref <$> gets snd)
 
 insertResult :: Ref GarbledGate -> Wirelabel -> Eval ()
 insertResult ref result = modify $ second (M.insert ref result)
@@ -88,16 +88,22 @@ evalLocal :: [Bool] -> (Program GarbledGate, Context) -> [Bool]
 evalLocal inps (prog, ctx) =
 #ifdef DEBUG
     trace (showPairs ctx) $
+    trace ("[evalLocal] result = " ++ show result)
 #endif
-    map ungarble result
+    result
   where
-    result   = eval prog (ctx_key ctx) inpwires
-    inpwires = zipWith sel inps (inputPairs prog ctx)
+    result = map ungarble outs
+    outs   = eval prog (ctx_key ctx) inpA inpB
+    n      = S.size (prog_inputs_a prog)
+    inpA   = zipWith sel (take n inps) (inputPairs A prog ctx)
+    inpB   = zipWith sel (drop n inps) (inputPairs B prog ctx)
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (ctx_truth ctx) of
       Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
       Just b  -> b
 
-inputPairs :: Program GarbledGate -> Context -> [WirelabelPair]
-inputPairs prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs prog))
+inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
+inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (accessor prog))
+  where
+    accessor = case p of A -> prog_inputs_a; B -> prog_inputs_b

@@ -21,7 +21,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 data CircSt = CircSt { st_nextRef     :: Ref Circ
-                     , st_inputs      :: S.Set (Ref Circ)
+                     , st_inputs_a    :: S.Set (Ref Circ)
+                     , st_inputs_b    :: S.Set (Ref Circ)
                      , st_nextInputId :: InputId
                      , st_env         :: Env Circ
                      }
@@ -29,15 +30,17 @@ data CircSt = CircSt { st_nextRef     :: Ref Circ
 type CircBuilder a = State CircSt a
 
 buildCirc :: CircBuilder [Ref Circ] -> Program Circ
-buildCirc c = Program { prog_inputs  = st_inputs st
-                      , prog_outputs = reverse outs
-                      , prog_env     = st_env st
+buildCirc c = Program { prog_inputs_a = st_inputs_a st
+                      , prog_inputs_b = st_inputs_b st
+                      , prog_outputs  = reverse outs
+                      , prog_env      = st_env st
                       }
   where
     (outs, st) = runState c emptySt
     emptySt    = CircSt { st_nextRef     = Ref 0
                         , st_nextInputId = InputId 0
-                        , st_inputs      = S.empty
+                        , st_inputs_a    = S.empty
+                        , st_inputs_b    = S.empty
                         , st_env         = emptyEnv
                         }
 
@@ -86,7 +89,7 @@ evalCirc inps prog = evalProg reconstruct prog
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
     reconstruct :: Ref Circ -> Circ -> [Bool] -> Bool
-    reconstruct _ (Input i) [] = case M.lookup i inputs of
+    reconstruct _ (Input i _) [] = case M.lookup i inputs of
       Just b  -> b
       Nothing -> err "reconstruct" ("no input with id " ++ show i)
     reconstruct _ (Const x) []    = x
@@ -99,11 +102,13 @@ evalCirc inps prog = evalProg reconstruct prog
 --------------------------------------------------------------------------------
 -- smart constructors
 
-c_input :: CircBuilder (Ref Circ)
-c_input = do i   <- nextInputId
-             ref <- intern (Input i)
-             modify (\st -> st { st_inputs = S.insert ref (st_inputs st) })
-             return ref
+c_input :: Party -> CircBuilder (Ref Circ)
+c_input p = do i   <- nextInputId
+               ref <- intern (Input i p)
+               case p of
+                 A -> modify (\st -> st { st_inputs_a = S.insert ref (st_inputs_a st) })
+                 B -> modify (\st -> st { st_inputs_b = S.insert ref (st_inputs_b st) })
+               return ref
 
 c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
 c_xor x y = intern (Xor x y)

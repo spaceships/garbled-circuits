@@ -25,7 +25,8 @@ type Port = Int
 garblerProto :: Port -> Program Circ -> [Bool] -> IO [Bool]
 garblerProto port prog inp = do
     (gg, ctx) <- garble prog
-    let pairs = inputPairs gg ctx
+    let myPairs    = inputPairs A gg ctx
+    let theirPairs = inputPairs B gg ctx
     listenAt port $ \h -> do
       undefined
       {-BS.hPutStrLn h (encode gg)-}

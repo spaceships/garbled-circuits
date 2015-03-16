@@ -8,11 +8,13 @@ module Crypto.GarbledCircuits.Util
   , err
   , evalProg
   , inputp
+  , inputSize
   , internp
   , lookp
   , lookupC
   , mask
   , nextRef
+  , nonInputRefs
   , progSize
   , sel
   , showPairs
@@ -86,6 +88,14 @@ mask b wl = if b then wl else zeroWirelabel
 xorWords :: [Word8] -> [Word8] -> [Word8]
 xorWords = zipWith Data.Bits.xor
 
+inputSize :: Program c -> Int
+inputSize prog = S.size (prog_inputs_a prog) + S.size (prog_inputs_b prog)
+
+nonInputRefs :: Program c -> [Ref c]
+nonInputRefs prog = filter (not.isInput) (M.keys (env_deref (prog_env prog)))
+  where
+    isInput ref = S.member ref (S.union (prog_inputs_a prog) (prog_inputs_b prog))
+
 --------------------------------------------------------------------------------
 -- garbled gate helpers
 
@@ -98,7 +108,7 @@ showGG prog =
     ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog)))
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
-        GarbledInput i      -> show i ++ " " ++ outp ref ++ "\n"
+        GarbledInput i p -> show i ++ show p ++ " " ++ outp ref ++ "\n"
         FreeXor  x y     -> "FREEXOR "  ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
         HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ "\t" ++ showWirelabel g ++ "\n"
@@ -140,10 +150,12 @@ internp circ = do
       put prog { prog_env = env' }
       return ref
 
-inputp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
-inputp inp = do
+inputp :: (Ord c, MonadState (Program c) m) => Party -> c -> m (Ref c)
+inputp party inp = do
   ref <- internp inp
-  modify (\p -> p { prog_inputs = S.insert ref (prog_inputs p) })
+  modify $ \p -> case party of 
+    A -> p { prog_inputs_a = S.insert ref (prog_inputs_a p) }
+    B -> p { prog_inputs_b = S.insert ref (prog_inputs_b p) }
   return ref
 
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()

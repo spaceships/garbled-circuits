@@ -3,16 +3,14 @@
 module Crypto.GarbledCircuits.TruthTable
   ( circ2tt
   , evalTT
-  , tableTypes
   )
 where
 
 import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Util (internp, inputp, lookupC, err, evalProg)
+import Crypto.GarbledCircuits.Util hiding (xor)
 
-import           Data.List (nub)
-import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Map as M
 import           Control.Monad.State
 import           Data.Bits (xor)
 import           Data.Functor
@@ -32,7 +30,6 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
 
     transform :: [Ref Circ] -> State (Program TruthTable) Bool
     transform outs = do
-        mapM_ trans (S.toList $ prog_inputs prog_circ)
         eitherOuts <- mapM trans outs
         case mapM check eitherOuts of
           Nothing    -> return False
@@ -52,10 +49,10 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
         let [x,y] = cs
         mkBin (circ2op circ) x y
       else case circ of
-        Not _   -> return $ mkNot (head cs)
-        Const b -> return $ Left (UConst b)
-        Input i -> Right <$> inputp (TTInp i)
-        x       -> error ("[trans] unrecognized pattern: " ++ show x)
+        Not _     -> return $ mkNot (head cs)
+        Const b   -> return $ Left (UConst b)
+        Input i p -> Right <$> inputp p (TTInp i p)
+        x         -> error ("[trans] unrecognized pattern: " ++ show x)
 
 --------------------------------------------------------------------------------
 -- combine elements - this is the meat of the TruthTable translator
@@ -101,7 +98,7 @@ evalTT inps (Just prog) = evalProg reconstruct prog
     inputs = M.fromList (zip (map InputId [0..]) inps)
 
     reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
-    reconstruct _ (TTInp i) [] = case M.lookup i inputs of
+    reconstruct _ (TTInp i _) [] = case M.lookup i inputs of
         Just b  -> b
         Nothing -> err "reconstruct" ("no input with id: " ++ show i)
     reconstruct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] = 
@@ -123,10 +120,3 @@ boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean (Or  _ _) = True
 boolean _ = False
-
-tableTypes :: Program TruthTable -> [String]
-tableTypes prog = nub (map show (filter isGate elems))
-  where
-    isGate (TTInp _) = False
-    isGate _ = True
-    elems = M.keys (env_dedup (prog_env prog))

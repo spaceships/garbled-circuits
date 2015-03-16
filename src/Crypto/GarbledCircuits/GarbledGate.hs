@@ -51,25 +51,29 @@ tt2gg (Just prog_tt) = do
           -- TT refs are topologically ordered
           mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt)))
         outs     = map convertRef (prog_outputs prog_tt)
-        inps     = Set.map convertRef (prog_inputs prog_tt)
-        prog_gg' = prog_gg { prog_outputs = outs, prog_inputs = inps }
+        inpA     = Set.map convertRef (prog_inputs_a prog_tt)
+        inpB     = Set.map convertRef (prog_inputs_b prog_tt)
+        prog_gg' = prog_gg { prog_outputs  = outs
+                           , prog_inputs_a = inpA
+                           , prog_inputs_b = inpB
+                           }
     return (prog_gg', ctx)
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)
-garbleGate tt_ref = lookupTT tt_ref >>= \case      -- get the TruthTable
-    TTInp i -> do                                  -- if it's an input:
-      pair   <- newWirelabels                      --   get new wirelabels
-      gg_ref <- inputp (GarbledInput i)            --   make it a gate, get a ref
-      updateContext gg_ref pair                    --   show our work
-      return gg_ref                                --   return the gate ref
-    tt -> do                                       -- otherwise:
-      gg_ref <- nextRef                            --   get a new ref
-      let xref = convertRef (tt_inpx tt)           --   get a ref to the left child gate
-          yref = convertRef (tt_inpy tt)           --   get a ref to the right child gate
-      (gate, out_wl) <- encode tt xref yref --   create the garbled table
-      writep gg_ref gate                           --   associate ref with garbled gate
-      updateContext gg_ref out_wl                  --   show our work
-      return gg_ref                                --   return the new gate ref
+garbleGate tt_ref = lookupTT tt_ref >>= \case -- get the TruthTable
+    TTInp i p -> do                           -- if it's an input:
+      pair   <- newWirelabels                 --   get new wirelabels
+      gg_ref <- inputp p (GarbledInput i p)   --   make it a gate, get a ref
+      updateContext gg_ref pair               --   show our work
+      return gg_ref                           --   return the gate ref
+    tt -> do                                  -- otherwise:
+      gg_ref <- nextRef                       --   get a new ref
+      let xref = convertRef (tt_inpx tt)      --   get a ref to the left child gate
+          yref = convertRef (tt_inpy tt)      --   get a ref to the right child gate
+      (gate, out_wl) <- encode tt xref yref   --   create the garbled table
+      writep gg_ref gate                      --   associate ref with garbled gate
+      updateContext gg_ref out_wl             --   show our work
+      return gg_ref                           --   return the new gate ref
 
 encode :: TruthTable      -- the TruthTable
        -> Ref GarbledGate -- left child ref

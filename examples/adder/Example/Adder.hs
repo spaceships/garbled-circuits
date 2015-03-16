@@ -33,8 +33,8 @@ addBits xs ys = do
 
 circ_NBitAdder :: Int -> Program Circ
 circ_NBitAdder n = buildCirc $ do
-    inp1      <- replicateM n c_input
-    inp2      <- replicateM n c_input
+    inp1      <- replicateM n (c_input A)
+    inp2      <- replicateM n (c_input B)
     (outs, _) <- addBits inp1 inp2
     return outs
 

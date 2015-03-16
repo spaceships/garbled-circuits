@@ -21,6 +21,7 @@ library
                       ,Crypto.GarbledCircuits.Encryption
                       ,Crypto.GarbledCircuits.GarbledGate
                       ,Crypto.GarbledCircuits.Eval
+                      ,Example.Adder
   build-depends:       base >=4.7 && <4.8
                       ,cereal
                       ,crypto-random
@@ -39,7 +40,6 @@ test-suite test-garbled-circuits
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      test
-                      ,examples/adder
   build-depends:       base >=4.7 && <4.8
                       ,garbled-circuits
                       ,crypto-random

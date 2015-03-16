@@ -19,9 +19,11 @@ type ByteString = BS.ByteString
 
 newtype Ref a = Ref { unRef :: Word64 } deriving (Enum, Ord, Eq)
 
+data Party = A | B deriving (Enum, Ord, Eq, Show)
+
 newtype InputId = InputId Int deriving (Enum, Ord, Eq)
 
-data Circ = Input InputId
+data Circ = Input InputId Party
           | Const Bool
           | Not (Ref Circ)
           | Xor (Ref Circ) (Ref Circ)
@@ -42,12 +44,13 @@ data Env c = Env { env_deref :: Map (Ref c) c
                  , env_dedup :: Map c (Ref c)
                  } deriving (Show)
 
-data Program c = Program { prog_inputs  :: Set (Ref c)
-                         , prog_outputs :: [Ref c]
-                         , prog_env     :: Env c
+data Program c = Program { prog_inputs_a :: Set (Ref c)
+                         , prog_inputs_b :: Set (Ref c)
+                         , prog_outputs  :: [Ref c]
+                         , prog_env      :: Env c
                          } deriving (Show)
 
-data TruthTable = TTInp InputId
+data TruthTable = TTInp InputId Party
                 | TT { tt_f    :: Operation
                      , tt_inpx :: Ref TruthTable
                      , tt_inpy :: Ref TruthTable
@@ -62,7 +65,7 @@ type Wirelabel = BS.ByteString
 
 type WirelabelPair = (Wirelabel, Wirelabel)
 
-data GarbledGate = GarbledInput InputId
+data GarbledGate = GarbledInput InputId Party
                  | FreeXor  (Ref GarbledGate) (Ref GarbledGate)
                  | HalfGate (Ref GarbledGate) (Ref GarbledGate) Wirelabel Wirelabel
                  deriving (Show, Eq, Ord)
@@ -94,11 +97,11 @@ instance CanHaveChildren Circ where
 
 instance CanHaveChildren TruthTable where
   children (TT {tt_inpx = x, tt_inpy = y}) = [x,y]
-  children (TTInp _) = []
+  children (TTInp _ _) = []
 
 instance CanHaveChildren GarbledGate where
-  children (GarbledInput _)   = []
-  children (FreeXor  x y)     = [x,y]
+  children (GarbledInput _ _) = []
+  children (FreeXor      x y) = [x,y]
   children (HalfGate x y _ _) = [x,y]
 
 instance Show (Ref c) where
@@ -109,6 +112,10 @@ instance Show InputId where
 
 --------------------------------------------------------------------------------
 -- helpers
+
+prog_inputs :: Party -> Program c -> Set (Ref c)
+prog_inputs A = prog_inputs_a
+prog_inputs B = prog_inputs_b
 
 lsb :: Wirelabel -> Bool
 lsb wl = BS.last wl .&. 1 > 0
@@ -124,7 +131,11 @@ showWirelabel wl = "wl" ++ showCol (lsb wl) ++ " " ++ hexStr
           hex = flip showHex ""
 
 emptyProg :: Program c
-emptyProg = Program { prog_inputs = S.empty, prog_outputs = [], prog_env = emptyEnv }
+emptyProg = Program { prog_inputs_a = S.empty
+                    , prog_inputs_b = S.empty
+                    , prog_outputs  = []
+                    , prog_env      = emptyEnv 
+                    }
 
 emptyEnv :: Env c
 emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
@@ -145,12 +156,12 @@ wlp_false :: WirelabelPair -> Wirelabel
 wlp_false = fst
 
 circ2op :: Circ -> Operation
-circ2op (Input _) = INPUT
-circ2op (Const _) = CONST
-circ2op (Not   _) = NOT
-circ2op (Xor _ _) = XOR
-circ2op (And _ _) = AND
-circ2op (Or  _ _) = OR
+circ2op (Input _ _) = INPUT
+circ2op (Const   _) = CONST
+circ2op (Not     _) = NOT
+circ2op (Xor   _ _) = XOR
+circ2op (And   _ _) = AND
+circ2op (Or    _ _) = OR
 
 emptyTT :: TruthTable
 emptyTT = TT { tt_f    = undefined
