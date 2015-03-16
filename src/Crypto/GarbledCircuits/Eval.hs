@@ -48,7 +48,6 @@ eval prog key inpA inpB =
 eval' :: Program GarbledGate -> Eval ()
 eval' prog = mapM_ evalRef (nonInputRefs prog)
   where
-
     evalRef ref = do
       let c = lookupC ref prog
       kids   <- mapM getResult (children c)
@@ -84,8 +83,8 @@ insertResult :: Ref GarbledGate -> Wirelabel -> Eval ()
 insertResult ref result = modify $ second (M.insert ref result)
 
 -- evaluate a garbled circuit locally
-evalLocal :: [Bool] -> (Program GarbledGate, Context) -> [Bool]
-evalLocal inps (prog, ctx) =
+evalLocal :: [Bool] -> [Bool] -> (Program GarbledGate, Context) -> [Bool]
+evalLocal inpA inpB (prog, ctx) =
 #ifdef DEBUG
     trace (showPairs ctx) $
     trace ("[evalLocal] result = " ++ show result)
@@ -93,10 +92,10 @@ evalLocal inps (prog, ctx) =
     result
   where
     result = map ungarble outs
-    outs   = eval prog (ctx_key ctx) inpA inpB
+    outs   = eval prog (ctx_key ctx) inpAwl inpBwl
     n      = S.size (prog_inputs_a prog)
-    inpA   = zipWith sel (take n inps) (inputPairs A prog ctx)
-    inpB   = zipWith sel (drop n inps) (inputPairs B prog ctx)
+    inpAwl = zipWith sel inpA (inputPairs A prog ctx)
+    inpBwl = zipWith sel inpB (inputPairs B prog ctx)
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (ctx_truth ctx) of
@@ -104,6 +103,4 @@ evalLocal inps (prog, ctx) =
       Just b  -> b
 
 inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
-inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (accessor prog))
-  where
-    accessor = case p of A -> prog_inputs_a; B -> prog_inputs_b
+inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))

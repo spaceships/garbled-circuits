@@ -72,18 +72,19 @@ prop_arbitraryCirc circ_test = monadicIO $ do
     let tt = circ2tt circ_test
     pre (isJust tt) -- ensure that the circ is garbleable
     garbled_test <- run (tt2gg tt)
-    inp <- pick $ vector (inputSize circ_test)
-    let pt = evalCirc  inp circ_test
-        gg = evalLocal inp garbled_test
+    inpA <- pick $ vector (inputSize A circ_test)
+    inpB <- pick $ vector (inputSize B circ_test)
+    let pt = evalCirc  inpA inpB circ_test
+        gg = evalLocal inpA inpB garbled_test
     assert (gg == pt)
 
 prop_protoWorks :: Program Circ -> Property 
 prop_protoWorks prog = monadicIO $ do
-    inp <- pick $ vector (inputSize prog)
-    let n  = inputSize prog `div` 2
-        pt = evalCirc inp prog
-    run $ forkIO $ garblerProto 12345 prog (take n inp) >> return ()
-    gg <- run $ evaluatorProto "localhost" 12345 (drop n inp)
+    inpA <- pick $ vector (inputSize A prog)
+    inpB <- pick $ vector (inputSize B prog)
+    let pt = evalCirc inpA inpB prog
+    run $ forkIO $ garblerProto 12345 prog inpA >> return ()
+    gg <- run $ evaluatorProto "localhost" 12345 inpB
     assert (gg == pt)
 
 --------------------------------------------------------------------------------

@@ -51,12 +51,7 @@ tt2gg (Just prog_tt) = do
           -- TT refs are topologically ordered
           mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt)))
         outs     = map convertRef (prog_outputs prog_tt)
-        inpA     = Set.map convertRef (prog_inputs_a prog_tt)
-        inpB     = Set.map convertRef (prog_inputs_b prog_tt)
-        prog_gg' = prog_gg { prog_outputs  = outs
-                           , prog_inputs_a = inpA
-                           , prog_inputs_b = inpB
-                           }
+        prog_gg' = prog_gg { prog_outputs  = outs }
     return (prog_gg', ctx)
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)

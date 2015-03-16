@@ -91,21 +91,22 @@ foldConst _ _ _ = err "foldConst" "unrecognized operation"
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-evalTT :: [Bool] -> Maybe (Program TruthTable) -> [Bool]
-evalTT _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
-evalTT inps (Just prog) = evalProg reconstruct prog
+evalTT :: [Bool] -> [Bool] -> Maybe (Program TruthTable) -> [Bool]
+evalTT _    _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
+evalTT inpA inpB (Just prog) = evalProg construct prog
   where
-    inputs = M.fromList (zip (map InputId [0..]) inps)
+    inputs A = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA)
+    inputs B = M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
 
-    reconstruct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
-    reconstruct _ (TTInp i _) [] = case M.lookup i inputs of
+    construct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
+    construct ref (TTInp i p) [] = case M.lookup ref (inputs p) of
         Just b  -> b
-        Nothing -> err "reconstruct" ("no input with id: " ++ show i)
-    reconstruct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] = 
+        Nothing -> err "construct" ("no input with id: " ++ show i)
+    construct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] = 
         let x' = if tt_negx then not x else x
             y' = if tt_negy then not y else y
         in eval tt_f x' y'
-    reconstruct _ _ _ = err "reconstruct" "bad pattern"
+    construct _ _ _ = err "construct" "bad pattern"
 
     eval XOR = xor
     eval AND = (&&)

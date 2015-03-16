@@ -83,21 +83,25 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- plaintext evaluator
 
-evalCirc :: [Bool] -> Program Circ -> [Bool]
-evalCirc inps prog = evalProg reconstruct prog
-  where
-    inputs = M.fromList (zip (map InputId [0..]) inps)
+inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
+inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))
 
-    reconstruct :: Ref Circ -> Circ -> [Bool] -> Bool
-    reconstruct _ (Input i _) [] = case M.lookup i inputs of
+evalCirc :: [Bool] -> [Bool] -> Program Circ -> [Bool]
+evalCirc inpA inpB prog = evalProg construct prog
+  where
+    inputs A = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA)
+    inputs B = M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
+
+    construct :: Ref Circ -> Circ -> [Bool] -> Bool
+    construct ref (Input i p) [] = case M.lookup ref (inputs p) of
       Just b  -> b
       Nothing -> err "reconstruct" ("no input with id " ++ show i)
-    reconstruct _ (Const x) []    = x
-    reconstruct _ (Not _)   [x]   = Prelude.not x
-    reconstruct _ (Xor _ _) [x,y] = Data.Bits.xor x y
-    reconstruct _ (And _ _) [x,y] = x && y
-    reconstruct _ (Or  _ _) [x,y] = x || y
-    reconstruct _ _ _ = err "reconstruct" "unrecognized pattern"
+    construct _ (Const x) []    = x
+    construct _ (Not _)   [x]   = Prelude.not x
+    construct _ (Xor _ _) [x,y] = Data.Bits.xor x y
+    construct _ (And _ _) [x,y] = x && y
+    construct _ (Or  _ _) [x,y] = x || y
+    construct _ _ _ = err "reconstruct" "unrecognized pattern"
 
 --------------------------------------------------------------------------------
 -- smart constructors
@@ -105,9 +109,9 @@ evalCirc inps prog = evalProg reconstruct prog
 c_input :: Party -> CircBuilder (Ref Circ)
 c_input p = do i   <- nextInputId
                ref <- intern (Input i p)
-               case p of
-                 A -> modify (\st -> st { st_inputs_a = S.insert ref (st_inputs_a st) })
-                 B -> modify (\st -> st { st_inputs_b = S.insert ref (st_inputs_b st) })
+               modify $ \st -> case p of
+                 A -> st { st_inputs_a = S.insert ref (st_inputs_a st) }
+                 B -> st { st_inputs_b = S.insert ref (st_inputs_b st) }
                return ref
 
 c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)

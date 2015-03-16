@@ -88,8 +88,8 @@ mask b wl = if b then wl else zeroWirelabel
 xorWords :: [Word8] -> [Word8] -> [Word8]
 xorWords = zipWith Data.Bits.xor
 
-inputSize :: Program c -> Int
-inputSize prog = S.size (prog_inputs_a prog) + S.size (prog_inputs_b prog)
+inputSize :: Party -> Program c -> Int
+inputSize p prog = S.size (prog_inputs p prog)
 
 nonInputRefs :: Program c -> [Ref c]
 nonInputRefs prog = filter (not.isInput) (M.keys (env_deref (prog_env prog)))
