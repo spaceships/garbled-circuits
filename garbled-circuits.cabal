@@ -20,7 +20,7 @@ library
                       ,Crypto.GarbledCircuits.TruthTable
                       ,Crypto.GarbledCircuits.Encryption
                       ,Crypto.GarbledCircuits.GarbledGate
-                      ,Crypto.GarbledCircuits.Evaluator
+                      ,Crypto.GarbledCircuits.Eval
   build-depends:       base >=4.7 && <4.8
                       ,cereal
                       ,crypto-random
@@ -28,6 +28,7 @@ library
                       ,cipher-aes
                       ,containers
                       ,mtl
+                      ,network
 
   ghc-options:        -fwarn-incomplete-patterns
   default-language:    Haskell2010
@@ -47,19 +48,3 @@ test-suite test-garbled-circuits
                       ,QuickCheck
                       ,containers
 
---------------------------------------------------------------------------------
--- example garbled circuit programs
-
-executable adder-garbler
-  hs-source-dirs:      examples/adder
-  main-is:             Garbler.hs
-  other-modules:       Example.Adder
-  build-depends:       base >=4.7 && <4.8
-                      ,garbled-circuits
-
-executable adder-evaluator
-  hs-source-dirs:      examples/adder
-  main-is:             Evaluator.hs
-  other-modules:       Example.Adder
-  build-depends:       base >=4.7 && <4.8
-                      ,garbled-circuits

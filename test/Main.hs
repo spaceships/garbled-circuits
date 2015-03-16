@@ -3,6 +3,7 @@
 
 module Main where
 
+import Control.Concurrent
 import "crypto-random" Crypto.Random
 import Data.Monoid
 import Data.Maybe
@@ -19,7 +20,7 @@ import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.GarbledGate
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Encryption
-import Crypto.GarbledCircuits.Evaluator
+import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
@@ -37,6 +38,7 @@ tests = [
         , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
         , testProperty "lsb R always equals 1" prop_lsbOfR
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
+        , testProperty "The networking protocols work" prop_protoWorks
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -71,8 +73,17 @@ prop_arbitraryCirc circ_test = monadicIO $ do
     pre (isJust tt) -- ensure that the circ is garbleable
     garbled_test <- run (tt2gg tt)
     inp <- pick $ vector (inputSize circ_test)
-    let pt  = evalCirc  inp circ_test
-        gg  = evalLocal inp garbled_test
+    let pt = evalCirc  inp circ_test
+        gg = evalLocal inp garbled_test
+    assert (gg == pt)
+
+prop_protoWorks :: Program Circ -> Property 
+prop_protoWorks prog = monadicIO $ do
+    inp <- pick $ vector (inputSize prog)
+    let n  = inputSize prog `div` 2
+        pt = evalCirc inp prog
+    run $ forkIO $ garblerProto 12345 prog (take n inp) >> return ()
+    gg <- run $ evaluatorProto "localhost" 12345 (drop n inp)
     assert (gg == pt)
 
 --------------------------------------------------------------------------------

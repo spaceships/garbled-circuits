@@ -1,7 +1,8 @@
-module Crypto.GarbledCircuits.Evaluator
+module Crypto.GarbledCircuits.Eval
   (
     evalLocal
   , eval
+  , inputPairs
   )
 where
 
@@ -91,10 +92,12 @@ evalLocal inps (prog, ctx) =
     map ungarble result
   where
     result   = eval prog (ctx_key ctx) inpwires
-    inpwlps  = map (violentLookup $ ctx_pairs ctx) (S.toList $ prog_inputs prog)
-    inpwires = zipWith sel inps inpwlps
+    inpwires = zipWith sel inps (inputPairs prog ctx)
 
     ungarble :: Wirelabel -> Bool
     ungarble wl = case M.lookup wl (ctx_truth ctx) of
       Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
       Just b  -> b
+
+inputPairs :: Program GarbledGate -> Context -> [WirelabelPair]
+inputPairs prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs prog))

@@ -2,8 +2,9 @@ module Example.Adder where
 
 import Crypto.GarbledCircuits
 import Crypto.GarbledCircuits.Util
-import Crypto.GarbledCircuits.Evaluator
+import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.TruthTable
+import Crypto.GarbledCircuits.GarbledGate
 import Crypto.GarbledCircuits.Types
 
 import Control.Monad
