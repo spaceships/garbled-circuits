@@ -1,5 +1,6 @@
 module Crypto.GarbledCircuits.Language
-  ( CircBuilder
+  ( 
+    CircBuilder
   , buildCirc
   , evalCirc
   , intern
@@ -82,9 +83,6 @@ intern circ = do
 
 --------------------------------------------------------------------------------
 -- plaintext evaluator
-
-inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
-inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))
 
 evalCirc :: [Bool] -> [Bool] -> Program Circ -> [Bool]
 evalCirc inpA inpB prog = evalProg construct prog

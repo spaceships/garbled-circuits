@@ -12,9 +12,9 @@ import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
-import           Control.Exception
 import           Control.Monad
-import qualified Data.ByteString as BS
+import           Data.Functor
+import qualified Data.ByteString.Char8 as BS
 import           Data.Serialize
 import           Network.Socket
 import           Network.BSD
@@ -25,15 +25,41 @@ type Port = Int
 garblerProto :: Port -> Program Circ -> [Bool] -> IO [Bool]
 garblerProto port prog inp = do
     (gg, ctx) <- garble prog
-    let myPairs    = inputPairs A gg ctx
-    let theirPairs = inputPairs B gg ctx
+    let myWires    = inputWires A gg ctx inp
+        theirPairs = inputPairs B gg ctx
+        outPairs   = outputPairs gg ctx
     listenAt port $ \h -> do
-      undefined
-      {-BS.hPutStrLn h (encode gg)-}
-    undefined
+      {-hPutSerialize h (gg, myWires, ctx_key ctx)-}
+      otSendWirelabels h theirPairs
+      wires <- hGetSerialize h
+      let result = map (ungarble ctx) wires
+      hPutSerialize h result
+      return result
 
 evaluatorProto :: HostName -> Port -> [Bool] -> IO [Bool]
-evaluatorProto = undefined
+evaluatorProto host port inp = do
+    connectTo host port $ \h -> do
+      {-(gg, inpA, key) <- hGetSerialize h-}
+      inpB <- otRecvWirelabels h inp
+      {-let wires = eval gg key inpA inpB-}
+      {-hPutSerialize h wires-}
+      hGetSerialize h
+      
+hPutSerialize :: Serialize a => Handle -> a -> IO ()
+hPutSerialize h x = BS.hPutStrLn h (encode x)
+
+hGetSerialize :: Serialize a => Handle -> IO a
+hGetSerialize h = do
+    str <- BS.hGetLine h
+    case decode str of
+      Left  e -> err "hGetGarbledCircuit" e
+      Right x -> return x
+
+otSendWirelabels :: Handle -> [WirelabelPair] -> IO ()
+otSendWirelabels = undefined
+
+otRecvWirelabels :: Handle -> [Bool] -> IO [Wirelabel]
+otRecvWirelabels = undefined
 
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do

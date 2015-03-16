@@ -7,24 +7,28 @@ module Crypto.GarbledCircuits.Util
   , convertRef
   , err
   , evalProg
-  , inputp
+  , inputPairs
   , inputSize
+  , inputWires
+  , inputp
   , internp
   , lookp
   , lookupC
   , mask
   , nextRef
   , nonInputRefs
+  , outputPairs
   , progSize
   , sel
-  , showPairs
   , showGG
-  , topoSort
+  , showPairs
   , topoLevels
+  , topoSort
   , truthVals
+  , ungarble
+  , violentLookup
   , word2Bits
   , writep
-  , violentLookup
   , xor
   , xorWords
   , (!)
@@ -101,6 +105,20 @@ nonInputRefs prog = filter (not.isInput) (M.keys (env_deref (prog_env prog)))
 
 sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false
+
+inputWires :: Party -> Program GarbledGate -> Context -> [Bool] -> [Wirelabel]
+inputWires party prog ctx inp = zipWith sel inp (inputPairs party prog ctx)
+
+inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
+inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))
+
+outputPairs :: Program GarbledGate -> Context -> [WirelabelPair]
+outputPairs prog ctx = map (ctx_pairs ctx !) (prog_outputs prog)
+
+ungarble :: Context -> Wirelabel -> Bool
+ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
+  Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
+  Just b  -> b
 
 showGG :: Program GarbledGate -> String
 showGG prog =
