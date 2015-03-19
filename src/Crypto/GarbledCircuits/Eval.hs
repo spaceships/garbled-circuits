@@ -39,10 +39,10 @@ eval prog key inpA inpB =
     result
 #endif
   where
-    initialResults = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA) `M.union`
-                     M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
+    initialResults = M.fromList (zip (S.toList (prog_input_a prog)) inpA) `M.union`
+                     M.fromList (zip (S.toList (prog_input_b prog)) inpB)
     resultMap = runEval key initialResults (eval' prog)
-    result    = map (resultMap !) (prog_outputs prog)
+    result    = map (resultMap !) (prog_output prog)
 
 eval' :: Program GarbledGate -> Eval ()
 eval' prog = mapM_ evalRef (nonInputRefs prog)

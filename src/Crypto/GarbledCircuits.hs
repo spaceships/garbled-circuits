@@ -1,8 +1,11 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Crypto.GarbledCircuits
   (
     garblerProto
   , evaluatorProto
   , module Crypto.GarbledCircuits.Language
+  ,
   )
 where
 
@@ -44,16 +47,14 @@ evaluatorProto host port inp = do
       {-let wires = eval gg key inpA inpB-}
       {-hPutSerialize h wires-}
       hGetSerialize h
-      
+
 hPutSerialize :: Serialize a => Handle -> a -> IO ()
 hPutSerialize h x = BS.hPutStrLn h (encode x)
 
 hGetSerialize :: Serialize a => Handle -> IO a
 hGetSerialize h = do
     str <- BS.hGetLine h
-    case decode str of
-      Left  e -> err "hGetGarbledCircuit" e
-      Right x -> return x
+    either (err "hGetGarbledCircuit") return (decode str)
 
 otSendWirelabels :: Handle -> [WirelabelPair] -> IO ()
 otSendWirelabels = undefined

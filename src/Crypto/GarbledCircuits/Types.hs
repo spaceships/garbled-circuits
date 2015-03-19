@@ -1,27 +1,30 @@
-{-# LANGUAGE PackageImports, RecordWildCards, GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE PackageImports, GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Crypto.GarbledCircuits.Types where
 
+import           Control.Applicative hiding (Const)
 import           Control.Monad.Reader
-import           Control.Monad.State
+import           Control.Monad.State (StateT, State)
 import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
 import           Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
+import           Data.Serialize
 import           Data.Word
+import           Debug.Trace
 import           Numeric (showHex)
 
 type Map = M.Map
 type Set = S.Set
 type ByteString = BS.ByteString
 
-newtype Ref a = Ref { unRef :: Word64 } deriving (Enum, Ord, Eq)
+newtype Ref a = Ref { unRef :: Word16 } deriving (Enum, Ord, Eq)
 
 data Party = A | B deriving (Enum, Ord, Eq, Show)
 
-newtype InputId = InputId Int deriving (Enum, Ord, Eq)
+newtype InputId = InputId { getInputId :: Int } deriving (Enum, Ord, Eq)
 
 data Circ = Input InputId Party
           | Const Bool
@@ -40,15 +43,13 @@ data Operation = INPUT
                | OR
                deriving (Show, Eq, Ord)
 
-data Env c = Env { env_deref :: Map (Ref c) c
-                 , env_dedup :: Map c (Ref c)
-                 } deriving (Show)
+type Env c = Map (Ref c) c
 
-data Program c = Program { prog_inputs_a :: Set (Ref c)
-                         , prog_inputs_b :: Set (Ref c)
-                         , prog_outputs  :: [Ref c]
-                         , prog_env      :: Env c
-                         } deriving (Show)
+data Program c = Program { prog_input_a :: Set (Ref c)
+                         , prog_input_b :: Set (Ref c)
+                         , prog_output  :: [Ref c]
+                         , prog_env     :: Env c
+                         } deriving (Show, Eq)
 
 data TruthTable = TTInp InputId Party
                 | TT { tt_f    :: Operation
@@ -110,12 +111,62 @@ instance Show (Ref c) where
 instance Show InputId where
   show (InputId i) = "in" ++ show i
 
+instance Serialize (Ref GarbledGate) where
+  put = put . unRef
+  get = Ref <$> get
+
+instance Serialize GarbledGate where
+  put (GarbledInput i p) = do
+    put (0            :: Word8)
+    put (getInputId i :: Int)
+    put (fromEnum p   :: Int)
+
+  put (FreeXor x y) = do
+    put (1 :: Word8)
+    put x
+    put y
+
+  put (HalfGate x y g e) = do
+    put (2 :: Word8)
+    put x
+    put y
+    put g
+    put e
+
+  get = do
+    ty <- get :: Get Word8
+    case ty of
+      0 -> GarbledInput <$> (InputId <$> get) <*> (toEnum <$> get)
+      1 -> FreeXor <$> get <*> get
+      2 -> HalfGate <$> get <*> get <*> get <*> get
+      _ -> error "[get] unknown garbled gate type"
+
+instance Serialize (Program GarbledGate) where
+  put prog = do
+    put $ S.toList (prog_input_a prog)
+    put $ S.toList (prog_input_b prog)
+    put $ prog_output prog
+    put $ map snd (M.toList (prog_env prog))
+  get = do
+    inpA  <- S.fromList <$> get
+    inpB  <- S.fromList <$> get
+    outs  <- get
+    gates <- get :: Get [GarbledGate]
+    let env = M.fromList $ zip (map Ref [0..]) gates
+    let prog =  emptyProg { prog_input_a = inpA
+                          , prog_input_b = inpB
+                          , prog_output  = outs
+                          , prog_env     = env
+                          }
+    traceM ("*******" ++ show prog)
+    return prog
+
 --------------------------------------------------------------------------------
 -- helpers
 
 prog_inputs :: Party -> Program c -> Set (Ref c)
-prog_inputs A = prog_inputs_a
-prog_inputs B = prog_inputs_b
+prog_inputs A = prog_input_a
+prog_inputs B = prog_input_b
 
 lsb :: Wirelabel -> Bool
 lsb wl = BS.last wl .&. 1 > 0
@@ -131,14 +182,14 @@ showWirelabel wl = "wl" ++ showCol (lsb wl) ++ " " ++ hexStr
           hex = flip showHex ""
 
 emptyProg :: Program c
-emptyProg = Program { prog_inputs_a = S.empty
-                    , prog_inputs_b = S.empty
-                    , prog_outputs  = []
-                    , prog_env      = emptyEnv 
+emptyProg = Program { prog_input_a = S.empty
+                    , prog_input_b = S.empty
+                    , prog_output  = []
+                    , prog_env     = emptyEnv
                     }
 
 emptyEnv :: Env c
-emptyEnv = Env { env_deref = M.empty, env_dedup = M.empty }
+emptyEnv = M.empty
 
 truthVals :: (Bool -> Bool -> Bool) -> [Bool]
 truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]

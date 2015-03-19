@@ -1,5 +1,5 @@
 module Crypto.GarbledCircuits.Language
-  ( 
+  (
     CircBuilder
   , buildCirc
   , evalCirc
@@ -25,16 +25,17 @@ data CircSt = CircSt { st_nextRef     :: Ref Circ
                      , st_inputs_a    :: S.Set (Ref Circ)
                      , st_inputs_b    :: S.Set (Ref Circ)
                      , st_nextInputId :: InputId
-                     , st_env         :: Env Circ
+                     , st_deref_env   :: Map (Ref Circ) Circ
+                     , st_dedup_env   :: Map Circ (Ref Circ)
                      }
 
 type CircBuilder a = State CircSt a
 
 buildCirc :: CircBuilder [Ref Circ] -> Program Circ
-buildCirc c = Program { prog_inputs_a = st_inputs_a st
-                      , prog_inputs_b = st_inputs_b st
-                      , prog_outputs  = reverse outs
-                      , prog_env      = st_env st
+buildCirc c = Program { prog_input_a = st_inputs_a st
+                      , prog_input_b = st_inputs_b st
+                      , prog_output  = reverse outs
+                      , prog_env     = st_deref_env st
                       }
   where
     (outs, st) = runState c emptySt
@@ -42,22 +43,22 @@ buildCirc c = Program { prog_inputs_a = st_inputs_a st
                         , st_nextInputId = InputId 0
                         , st_inputs_a    = S.empty
                         , st_inputs_b    = S.empty
-                        , st_env         = emptyEnv
+                        , st_deref_env   = emptyEnv
+                        , st_dedup_env   = M.empty
                         }
 
 lookupCirc :: Circ -> CircBuilder (Maybe (Ref Circ))
 lookupCirc circ = do
-  dedupEnv <- gets (env_dedup . st_env)
+  dedupEnv <- gets (st_dedup_env)
   return (M.lookup circ dedupEnv)
 
 insertRef :: Ref Circ -> Circ -> CircBuilder ()
 insertRef ref circ = do
-  derefEnv <- gets (env_deref . st_env)
-  dedupEnv <- gets (env_dedup . st_env)
-  modify (\st -> st { st_env =
-    Env (M.insert ref circ derefEnv)
-        (M.insert circ ref dedupEnv)
-    })
+  derefEnv <- gets (st_deref_env)
+  dedupEnv <- gets (st_dedup_env)
+  modify (\st -> st { st_deref_env = M.insert ref circ derefEnv
+                    , st_dedup_env = M.insert circ ref dedupEnv
+                    })
 
 nextRef :: CircBuilder (Ref Circ)
 nextRef = do
@@ -87,8 +88,8 @@ intern circ = do
 evalCirc :: [Bool] -> [Bool] -> Program Circ -> [Bool]
 evalCirc inpA inpB prog = evalProg construct prog
   where
-    inputs A = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA)
-    inputs B = M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
+    inputs A = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
+    inputs B = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
 
     construct :: Ref Circ -> Circ -> [Bool] -> Bool
     construct ref (Input i p) [] = case M.lookup ref (inputs p) of

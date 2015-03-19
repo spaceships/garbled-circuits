@@ -4,10 +4,13 @@
 module Main where
 
 import Control.Concurrent
+import Control.Monad
 import "crypto-random" Crypto.Random
+import Data.Functor
 import Data.Monoid
 import Data.Maybe
 import Data.Word
+import Data.Serialize
 import qualified Data.Set as S
 
 import Test.Framework
@@ -37,7 +40,10 @@ tests = [
         , testProperty "Garbled 8 bit adder is correct" prop_8BitAdderGG
         , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
         , testProperty "lsb R always equals 1" prop_lsbOfR
-        , testProperty "Arbitrary circuit is correct" prop_arbitraryCirc
+        , testProperty "Arbitrary circuit is correct" prop_arbitraryCircCorrect
+        , testProperty "Serialization is correct" prop_serializeCorrect
+        , testProperty "Serialization input is correct" prop_serializeCorrectInput
+        , testProperty "Serialization output is correct" prop_serializeCorrectOutput
         {-, testProperty "The networking protocols work" prop_protoWorks-}
         ]
 
@@ -67,28 +73,53 @@ prop_colorsDifferent = testGarble newWirelabels test
 prop_lsbOfR :: Property
 prop_lsbOfR = testGarble genR lsb
 
-prop_arbitraryCirc :: Program Circ -> Property
-prop_arbitraryCirc circ_test = monadicIO $ do
-    let tt = circ2tt circ_test
-    pre (isJust tt) -- ensure that the circ is garbleable
-    garbled_test <- run (tt2gg tt)
-    inpA <- pick $ vector (inputSize A circ_test)
-    inpB <- pick $ vector (inputSize B circ_test)
-    let pt = evalCirc  inpA inpB circ_test
+prop_arbitraryCircCorrect :: Program Circ -> Property
+prop_arbitraryCircCorrect circ = monadicIO $ do
+    garbled_test <- testCirc circ
+    inpA <- pick $ vector (inputSize A circ)
+    inpB <- pick $ vector (inputSize B circ)
+    let pt = evalCirc  inpA inpB circ
         gg = evalLocal inpA inpB garbled_test
     assert (gg == pt)
 
-prop_protoWorks :: Program Circ -> Property 
+ensureEither :: Eq b => Either a b -> b -> Bool
+ensureEither e eq = either (const False) (== eq) e
+
+prop_serializeCorrectInput :: Program Circ -> Property
+prop_serializeCorrectInput circ = monadicIO $ do
+    (gg, _) <- testCirc circ
+    let res = decode (encode gg)
+    assert $ ensureEither (prog_input_a <$> res) (prog_input_a gg)
+    assert $ ensureEither (prog_input_b <$> res) (prog_input_b gg)
+
+prop_serializeCorrectOutput :: Program Circ -> Property
+prop_serializeCorrectOutput circ = monadicIO $ do
+    (gg, _) <- testCirc circ
+    let res = decode (encode gg)
+    assert $ ensureEither (prog_output <$> res) (prog_output gg)
+
+prop_serializeCorrect :: Program Circ -> Property
+prop_serializeCorrect circ = monadicIO $ do
+    (gg, _) <- testCirc circ
+    assert $ ensureEither (decode (encode gg)) gg
+
+prop_protoWorks :: Program Circ -> Property
 prop_protoWorks prog = monadicIO $ do
     inpA <- pick $ vector (inputSize A prog)
     inpB <- pick $ vector (inputSize B prog)
     let pt = evalCirc inpA inpB prog
-    run $ forkIO $ garblerProto 12345 prog inpA >> return ()
+    run $ forkIO $ void (garblerProto 12345 prog inpA)
     gg <- run $ evaluatorProto "localhost" 12345 inpB
     assert (gg == pt)
 
 --------------------------------------------------------------------------------
 -- helpers
+
+testCirc :: Program Circ -> PropertyM IO (Program GarbledGate, Context)
+testCirc circ = do
+    let tt = circ2tt circ
+    pre (isJust tt) -- ensure that the circ is garbleable
+    run (tt2gg tt)
 
 testGarble :: Garble a -> (a -> Bool) -> Property
 testGarble g p = monadicIO $ do
@@ -107,7 +138,7 @@ instance Arbitrary Operation where
 
 instance Arbitrary (Program Circ) where
   arbitrary = do
-    (x,_) <- mkCircuit =<< vector 2
+    (x,_) <- mkCircuit =<< vector 20
     let x' = do ref <- x; return [ref]
     return (buildCirc x')
 

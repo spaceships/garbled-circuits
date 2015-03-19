@@ -48,9 +48,9 @@ tt2gg (Just prog_tt) = do
           updateKey =<< genKey
           updateR   =<< genR
           -- TT refs are topologically ordered
-          mapM_ garbleGate (M.keys (env_deref (prog_env prog_tt)))
-        outs     = map convertRef (prog_outputs prog_tt)
-        prog_gg' = prog_gg { prog_outputs  = outs }
+          mapM_ garbleGate (M.keys (prog_env prog_tt))
+        outs     = map convertRef (prog_output prog_tt)
+        prog_gg' = prog_gg { prog_output = outs }
     return (prog_gg', ctx)
 
 garbleGate :: Ref TruthTable -> Garble (Ref GarbledGate)

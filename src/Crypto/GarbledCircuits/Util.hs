@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
 module Crypto.GarbledCircuits.Util
-  ( bitOr
+  (
+    bitOr
   , bindM2
   , bits2Word
   , convertRef
@@ -47,6 +48,7 @@ import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
+import           Data.Tuple
 import           Data.Word
 
 #ifdef DEBUG
@@ -75,10 +77,10 @@ pow2s :: (Num b, Bits b) => [b]
 pow2s = [ shift 1 x | x <- [0..] ]
 
 progSize :: Program c -> Int
-progSize = M.size . env_deref . prog_env
+progSize = M.size . prog_env
 
 xor :: ByteString -> ByteString -> ByteString
-xor x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x) 
+xor x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x)
                                                                      ++ " " ++ show (BS.length y))
         | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
 
@@ -96,9 +98,9 @@ inputSize :: Party -> Program c -> Int
 inputSize p prog = S.size (prog_inputs p prog)
 
 nonInputRefs :: Program c -> [Ref c]
-nonInputRefs prog = filter (not.isInput) (M.keys (env_deref (prog_env prog)))
+nonInputRefs prog = filter (not.isInput) (M.keys (prog_env prog))
   where
-    isInput ref = S.member ref (S.union (prog_inputs_a prog) (prog_inputs_b prog))
+    isInput ref = S.member ref (S.union (prog_input_a prog) (prog_input_b prog))
 
 --------------------------------------------------------------------------------
 -- garbled gate helpers
@@ -113,7 +115,7 @@ inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
 inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))
 
 outputPairs :: Program GarbledGate -> Context -> [WirelabelPair]
-outputPairs prog ctx = map (ctx_pairs ctx !) (prog_outputs prog)
+outputPairs prog ctx = map (ctx_pairs ctx !) (prog_output prog)
 
 ungarble :: Context -> Wirelabel -> Bool
 ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
@@ -123,7 +125,7 @@ ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
 showGG :: Program GarbledGate -> String
 showGG prog =
     "--------------------------------------------------------------------------------\n"
-    ++ "-- env \n" ++ concatMap showGate (M.toList (env_deref (prog_env prog)))
+    ++ "-- env \n" ++ concatMap showGate (M.toList (prog_env prog))
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
         GarbledInput i p -> show i ++ show p ++ " " ++ outp ref ++ "\n"
@@ -131,7 +133,7 @@ showGG prog =
         HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ "\t" ++ showWirelabel g ++ "\n"
                                       ++ "\t" ++ showWirelabel e ++ "\n"
-    outp r = case r `elemIndex` prog_outputs prog
+    outp r = case r `elemIndex` prog_output prog
       of Just i -> "out" ++ show i; _ -> ""
 
 showPairs :: Context -> String
@@ -147,55 +149,42 @@ showPairs ctx =
 
 nextRef :: (Ord c, MonadState (Program c) m) => m (Ref c)
 nextRef = do
-  prog <- get
-  let env   = prog_env prog
-      deref = env_deref env
-  return $ succ (fst (M.findMax deref))
+  env <- gets prog_env
+  return $ succ (fst (M.findMax env))
 
 internp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 internp circ = do
   prog <- get
   let env   = prog_env prog
-      dedup = env_dedup env
-      deref = env_deref env
+      dedup = M.fromList (map swap (M.toList env))
   case M.lookup circ dedup of
     Just ref -> return ref
     Nothing  -> do
-      let ref    = if M.null deref then Ref 0 else succ $ fst (M.findMax deref)
-          dedup' = M.insert circ ref dedup
-          deref' = M.insert ref circ deref
-          env'   = env { env_dedup = dedup', env_deref = deref' }
+      let ref  = if M.null env then Ref 0 else succ $ fst (M.findMax env)
+          env' = M.insert ref circ env
       put prog { prog_env = env' }
       return ref
 
 inputp :: (Ord c, MonadState (Program c) m) => Party -> c -> m (Ref c)
 inputp party inp = do
   ref <- internp inp
-  modify $ \p -> case party of 
-    A -> p { prog_inputs_a = S.insert ref (prog_inputs_a p) }
-    B -> p { prog_inputs_b = S.insert ref (prog_inputs_b p) }
+  modify $ \p -> case party of
+    A -> p { prog_input_a = S.insert ref (prog_input_a p) }
+    B -> p { prog_input_b = S.insert ref (prog_input_b p) }
   return ref
 
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()
-writep ref circ = do
-  prog <- get
-  let env   = prog_env prog
-      dedup = M.insert circ ref (env_dedup env)
-      deref = M.insert ref circ (env_deref env)
-      env'  = env { env_dedup = dedup, env_deref = deref }
-  put prog { prog_env = env' }
+writep ref circ = modify (\p -> p { prog_env = M.insert ref circ (prog_env p) })
 
 lookp :: (Ord c, MonadState (Program c) m) => Ref c -> m c
 lookp ref = do
   env <- gets prog_env
-  case M.lookup ref (env_deref env) of
+  case M.lookup ref env of
     Nothing -> error "[lookp] no c"
     Just c  -> return c
 
 lookupC :: Ref c -> Program c -> c
-lookupC ref prog = fromMaybe (error "[lookupC] no c") (M.lookup ref deref)
-  where
-    deref = env_deref (prog_env prog)
+lookupC ref prog = fromMaybe (error "[lookupC] no c") (M.lookup ref (prog_env prog))
 
 --------------------------------------------------------------------------------
 -- polymorphic topoSort
@@ -209,9 +198,9 @@ type DFS c = WriterT [Ref c] (State (DFSSt c))
 topoSort :: CanHaveChildren c => Program c -> [Ref c]
 topoSort prog = evalState (execWriterT (loop prog)) initialState
   where
-    deref = env_deref (prog_env prog)
+    env = prog_env prog
 
-    initialState = DFSSt { dfs_todo = S.fromList (M.keys deref)
+    initialState = DFSSt { dfs_todo = S.fromList (M.keys env)
                          , dfs_done = S.empty
                          }
 
@@ -248,8 +237,8 @@ topoSort prog = evalState (execWriterT (loop prog)) initialState
 topoLevels :: CanHaveChildren c => Program c -> [[Ref c]]
 topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
   where
-    update ref (set, deps) = 
-      let kids = children (lookupC ref prog) 
+    update ref (set, deps) =
+      let kids = children (lookupC ref prog)
       in if any (`S.member` deps) kids
          then Left  $ S.insert ref deps
          else Right (S.insert ref set, S.insert ref deps)
@@ -267,11 +256,11 @@ evalProg :: (Show b, CanHaveChildren c)
 evalProg construct prog = outputs
   where
     resultMap = execState (traverse construct prog) M.empty
-    outputs   = map (resultMap !) (prog_outputs prog)
+    outputs   = map (resultMap !) (prog_output prog)
 
 traverse :: (Show b, MonadState (Map (Ref c) b) m, CanHaveChildren c)
          => (Ref c -> c -> [b] -> b) -> Program c -> m ()
-traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
+traverse construct prog = mapM_ eval (M.keys (prog_env prog))
   where
     getVal ref = get >>= \precomputed ->
       case M.lookup ref precomputed of
@@ -283,7 +272,7 @@ traverse construct prog = mapM_ eval (M.keys (env_deref (prog_env prog)))
       let result = construct ref c kids
       modify (M.insert ref result)
 #ifdef DEBUG
-      traceM ("[traverse] " ++ show ref ++ show (unRef <$> children c) 
+      traceM ("[traverse] " ++ show ref ++ show (unRef <$> children c)
              ++ " result = " ++ show result)
 #endif
       return result

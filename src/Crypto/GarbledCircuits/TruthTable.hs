@@ -1,7 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.TruthTable
-  ( circ2tt
+  ( 
+    circ2tt
   , evalTT
   )
 where
@@ -26,7 +27,7 @@ data NotBinary = UNot (Ref TruthTable)
 circ2tt :: Program Circ -> Maybe (Program TruthTable)
 circ2tt prog_circ = if success then Just prog_tt else Nothing
   where
-    (success, prog_tt) = runState (transform $ prog_outputs prog_circ) emptyProg
+    (success, prog_tt) = runState (transform $ prog_output prog_circ) emptyProg
 
     transform :: [Ref Circ] -> State (Program TruthTable) Bool
     transform outs = do
@@ -34,7 +35,7 @@ circ2tt prog_circ = if success then Just prog_tt else Nothing
         case mapM check eitherOuts of
           Nothing    -> return False
           Just outs' -> do
-              modify (\p -> p { prog_outputs = outs' })
+              modify (\p -> p { prog_output = outs' })
               return True
       where
         check (Right ref) = Just ref
@@ -95,14 +96,14 @@ evalTT :: [Bool] -> [Bool] -> Maybe (Program TruthTable) -> [Bool]
 evalTT _    _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
 evalTT inpA inpB (Just prog) = evalProg construct prog
   where
-    inputs A = M.fromList (zip (S.toList (prog_inputs_a prog)) inpA)
-    inputs B = M.fromList (zip (S.toList (prog_inputs_b prog)) inpB)
+    inputs A = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
+    inputs B = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
 
     construct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
     construct ref (TTInp i p) [] = case M.lookup ref (inputs p) of
         Just b  -> b
         Nothing -> err "construct" ("no input with id: " ++ show i)
-    construct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] = 
+    construct _ (TT {tt_f, tt_negx, tt_negy}) [x,y] =
         let x' = if tt_negx then not x else x
             y' = if tt_negy then not y else y
         in eval tt_f x' y'
