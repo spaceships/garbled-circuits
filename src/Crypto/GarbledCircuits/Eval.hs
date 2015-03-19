@@ -91,6 +91,6 @@ evalLocal inpA inpB (prog, ctx) =
     result
   where
     result = map (ungarble ctx) outs
-    outs   = eval prog (ctx_key ctx) aWires bWires
+    outs   = eval prog (snd (ctx_key ctx)) aWires bWires
     aWires = inputWires A prog ctx inpA
     bWires = inputWires B prog ctx inpB

@@ -5,8 +5,8 @@ module Crypto.GarbledCircuits.Types where
 import           Control.Applicative hiding (Const)
 import           Control.Monad.Reader
 import           Control.Monad.State (StateT, State)
-import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
+import           Crypto.Cipher.AES
 import           Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
@@ -64,6 +64,8 @@ data TruthTable = TTInp InputId Party
 
 type Wirelabel = BS.ByteString
 
+type Key = BS.ByteString
+
 type WirelabelPair = (Wirelabel, Wirelabel)
 
 data GarbledGate = GarbledInput InputId Party
@@ -78,7 +80,7 @@ type Garble = StateT (Program GarbledGate)
 
 data Context = Context { ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
                        , ctx_truth :: Map Wirelabel Bool
-                       , ctx_key   :: AES
+                       , ctx_key   :: (Key, AES)
                        , ctx_r     :: Wirelabel
                        , ctx_ctr   :: Int
                        }

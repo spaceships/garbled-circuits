@@ -135,7 +135,7 @@ nextIndex = do
     return ctr
 
 getKey :: Garble AES
-getKey = lift.lift $ gets ctx_key
+getKey = lift.lift $ gets (snd.ctx_key)
 
 getR :: Garble Wirelabel
 getR = lift.lift $ gets ctx_r

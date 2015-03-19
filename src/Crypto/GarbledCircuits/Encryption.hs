@@ -16,7 +16,6 @@ import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
 import qualified Data.ByteString    as BS
-import           Control.Applicative
 import           Control.Monad.State
 import           Crypto.Cipher.AES
 import           "crypto-random" Crypto.Random
@@ -54,8 +53,10 @@ shiftLeft (b:bs) = let (bs', c) = shiftLeft bs
                        b'  = Bits.shiftL b 1 .|. c
                    in (b':bs', msb)
 
-genKey :: Garble AES
-genKey = initAES <$> randBlock
+genKey :: Garble (Key, AES)
+genKey = do
+  key <- randBlock
+  return (key, initAES key)
 
 genR :: Garble Wirelabel
 genR = do
@@ -79,7 +80,7 @@ randBool = do
   lift (put gen')
   return (w8 .&. 1 > 0)
 
-updateKey :: AES -> Garble ()
+updateKey :: (Key, AES) -> Garble ()
 updateKey k = lift.lift $ modify (\st -> st { ctx_key = k })
 
 updateR :: Wirelabel -> Garble ()
