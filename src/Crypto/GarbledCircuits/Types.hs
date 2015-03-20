@@ -11,7 +11,6 @@ import           Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.Serialize
 import           Data.Word
 import           Debug.Trace
 import           Numeric (showHex)
@@ -112,56 +111,6 @@ instance Show (Ref c) where
 
 instance Show InputId where
   show (InputId i) = "in" ++ show i
-
-instance Serialize (Ref GarbledGate) where
-  put = put . unRef
-  get = Ref <$> get
-
-instance Serialize GarbledGate where
-  put (GarbledInput i p) = do
-    put (0            :: Word8)
-    put (getInputId i :: Int)
-    put (fromEnum p   :: Int)
-
-  put (FreeXor x y) = do
-    put (1 :: Word8)
-    put x
-    put y
-
-  put (HalfGate x y g e) = do
-    put (2 :: Word8)
-    put x
-    put y
-    put g
-    put e
-
-  get = do
-    ty <- get :: Get Word8
-    case ty of
-      0 -> GarbledInput <$> (InputId <$> get) <*> (toEnum <$> get)
-      1 -> FreeXor <$> get <*> get
-      2 -> HalfGate <$> get <*> get <*> get <*> get
-      _ -> error "[get] unknown garbled gate type"
-
-instance Serialize (Program GarbledGate) where
-  put prog = do
-    put $ S.toList (prog_input_a prog)
-    put $ S.toList (prog_input_b prog)
-    put $ prog_output prog
-    put $ map snd (M.toList (prog_env prog))
-  get = do
-    inpA  <- S.fromList <$> get
-    inpB  <- S.fromList <$> get
-    outs  <- get
-    gates <- get :: Get [GarbledGate]
-    let env = M.fromList $ zip (map Ref [0..]) gates
-    let prog =  emptyProg { prog_input_a = inpA
-                          , prog_input_b = inpB
-                          , prog_output  = outs
-                          , prog_env     = env
-                          }
-    traceM ("*******" ++ show prog)
-    return prog
 
 --------------------------------------------------------------------------------
 -- helpers

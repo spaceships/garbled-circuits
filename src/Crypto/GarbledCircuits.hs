@@ -11,10 +11,12 @@ where
 
 import Crypto.GarbledCircuits.Language
 import Crypto.GarbledCircuits.GarbledGate
+import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
+import           Crypto.Cipher.AES
 import           Control.Monad
 import           Data.Functor
 import qualified Data.ByteString.Char8 as BS
@@ -32,20 +34,23 @@ garblerProto port prog inp = do
         theirPairs = inputPairs B gg ctx
         outPairs   = outputPairs gg ctx
     listenAt port $ \h -> do
-      {-hPutSerialize h (gg, myWires, ctx_key ctx)-}
+      hPutSerialize h (halfGates gg, myWires, fst (ctx_key ctx))
       otSendWirelabels h theirPairs
       wires <- hGetSerialize h
       let result = map (ungarble ctx) wires
       hPutSerialize h result
       return result
 
-evaluatorProto :: HostName -> Port -> [Bool] -> IO [Bool]
-evaluatorProto host port inp = do
+evaluatorProto :: HostName -> Port -> Program Circ -> [Bool] -> IO [Bool]
+evaluatorProto host port prog inp = do
+    let tt = circ2tt prog
     connectTo host port $ \h -> do
-      {-(gg, inpA, key) <- hGetSerialize h-}
+      (hgs, inpA, key) <- hGetSerialize h
       inpB <- otRecvWirelabels h inp
-      {-let wires = eval gg key inpA inpB-}
-      {-hPutSerialize h wires-}
+      let gg  = reconstruct tt hgs
+          k   = initAES (key :: ByteString)
+          out = eval gg k inpA inpB
+      hPutSerialize h out
       hGetSerialize h
 
 hPutSerialize :: Serialize a => Handle -> a -> IO ()

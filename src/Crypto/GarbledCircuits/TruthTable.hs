@@ -3,6 +3,7 @@
 module Crypto.GarbledCircuits.TruthTable
   ( 
     circ2tt
+  , circ2tt'
   , evalTT
   )
 where
@@ -12,6 +13,7 @@ import Crypto.GarbledCircuits.Util hiding (xor)
 
 import qualified Data.Set as S
 import qualified Data.Map as M
+import           Data.Maybe
 import           Control.Monad.State
 import           Data.Bits (xor)
 import           Data.Functor
@@ -24,8 +26,11 @@ data NotBinary = UNot (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)
 
-circ2tt :: Program Circ -> Maybe (Program TruthTable)
-circ2tt prog_circ = if success then Just prog_tt else Nothing
+circ2tt :: Program Circ -> Program TruthTable
+circ2tt = fromJust . circ2tt'
+
+circ2tt' :: Program Circ -> Maybe (Program TruthTable)
+circ2tt' prog_circ = if success then Just prog_tt else Nothing
   where
     (success, prog_tt) = runState (transform $ prog_output prog_circ) emptyProg
 
@@ -92,9 +97,8 @@ foldConst _ _ _ = err "foldConst" "unrecognized operation"
 --------------------------------------------------------------------------------
 -- truth table evaluator
 
-evalTT :: [Bool] -> [Bool] -> Maybe (Program TruthTable) -> [Bool]
-evalTT _    _    Nothing     = err "evalTT" "Recieved failed Program TruthTable"
-evalTT inpA inpB (Just prog) = evalProg construct prog
+evalTT :: [Bool] -> [Bool] -> Program TruthTable -> [Bool]
+evalTT inpA inpB prog = evalProg construct prog
   where
     inputs A = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
     inputs B = M.fromList (zip (S.toList (prog_input_b prog)) inpB)

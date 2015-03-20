@@ -1,12 +1,15 @@
 {-# LANGUAGE PackageImports, LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
-  ( garble
-  , tt2gg
+  ( 
+    garble
+  , halfGates
+  , newWirelabels
+  , printGG
+  , reconstruct
   , runGarble
   , runGarble'
-  , printGG
-  , newWirelabels
+  , tt2gg
   )
 where
 
@@ -22,7 +25,10 @@ import           "crypto-random" Crypto.Random
 import qualified Data.Bits
 import           Data.Functor
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           Data.Tuple (swap)
+
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- garble a truthtable program
@@ -40,9 +46,8 @@ runGarble' gen prog_tt =
   . flip evalStateT gen
   . flip runStateT emptyProg
 
-tt2gg :: Maybe (Program TruthTable) -> IO (Program GarbledGate, Context)
-tt2gg Nothing        = err "tt2gg" "received failed Program TruthTable"
-tt2gg (Just prog_tt) = do
+tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
+tt2gg prog_tt = do
     gen <- cprgCreate <$> createEntropyPool
     let (prog_gg, ctx) = runGarble gen prog_tt $ do
           updateKey =<< genKey
@@ -105,6 +110,35 @@ newWirelabels = do
     a <- randBlock
     r <- getR
     return (a, a `xor` r)
+
+halfGates :: Program GarbledGate -> [(Wirelabel, Wirelabel)]
+halfGates = map vals . filter halfGate . map snd . M.toList . prog_env
+  where
+    halfGate (HalfGate _ _ _ _) = True
+    halfGate _                  = False
+    vals (HalfGate _ _ g e)     = (g,e)
+    vals _                      = err "halfGates" "not half gate"
+
+-- create a Program GarbledGate given a TruthTable and a list of HalfGates
+reconstruct :: Program TruthTable -> [(Wirelabel, Wirelabel)] -> Program GarbledGate
+reconstruct prog hgs = Program { prog_input_a = S.map convertRef (prog_input_a prog)
+                               , prog_input_b = S.map convertRef (prog_input_b prog)
+                               , prog_output  = map convertRef (prog_output prog)
+                               , prog_env     = M.fromList (doStuff (M.toList (prog_env prog)) hgs)
+                               }
+
+doStuff :: [(Ref TruthTable, TruthTable)] 
+        -> [(Wirelabel, Wirelabel)] 
+        -> [(Ref GarbledGate, GarbledGate)]
+doStuff []              _  = []
+doStuff ((ref,tt):rest) hs = 
+  let (gg,hs') = case tt of {
+    TTInp i p -> (GarbledInput i p, hs);
+    _         -> case tt_f tt of
+      XOR   -> (FreeXor  (convertRef (tt_inpx tt)) (convertRef (tt_inpy tt)), hs);
+      _     -> (HalfGate (convertRef (tt_inpx tt)) (convertRef (tt_inpy tt)) (fst (head hs)) (snd (head hs)), tail hs);
+  }
+  in (convertRef ref, gg) : doStuff rest hs'
 
 --------------------------------------------------------------------------------
 -- helpers

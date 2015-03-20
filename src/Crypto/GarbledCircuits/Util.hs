@@ -156,8 +156,8 @@ internp :: (Ord c, MonadState (Program c) m) => c -> m (Ref c)
 internp circ = do
   prog <- get
   let env   = prog_env prog
-      dedup = M.fromList (map swap (M.toList env))
-  case M.lookup circ dedup of
+      dedup = map swap (M.toList env)
+  case lookup circ dedup of
     Just ref -> return ref
     Nothing  -> do
       let ref  = if M.null env then Ref 0 else succ $ fst (M.findMax env)
