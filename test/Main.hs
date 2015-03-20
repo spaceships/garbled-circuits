@@ -150,7 +150,7 @@ mkCircuit (NOT:ops) = do
 mkCircuit (op:ops) = do
     (x,ops')  <- mkCircuit ops
     (y,ops'') <- mkCircuit ops'
-    let c = bindM2 (op2circ op) x y
+    let c = bind2 (op2circ op) x y
     return (c, ops'')
 
 mkCircuit [] = do

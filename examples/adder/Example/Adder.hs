@@ -17,7 +17,7 @@ add1Bit :: Ref Circ -> Ref Circ -> Ref Circ -> CircBuilder (Ref Circ, Ref Circ)
 add1Bit x y c = do
     s    <- c_xor x y
     out  <- c_xor c s
-    cout <- bindM2 c_or (c_and x y) (c_and c s)
+    cout <- bind2 c_or (c_and x y) (c_and c s)
     return (out, cout)
 
 addBits :: [Ref Circ] -> [Ref Circ] -> CircBuilder ([Ref Circ], Ref Circ)

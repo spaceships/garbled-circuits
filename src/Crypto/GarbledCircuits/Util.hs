@@ -3,7 +3,7 @@
 module Crypto.GarbledCircuits.Util
   (
     bitOr
-  , bindM2
+  , bind2
   , bits2Word
   , convertRef
   , err
@@ -58,8 +58,8 @@ import Debug.Trace
 --------------------------------------------------------------------------------
 -- general helper functions
 
-bindM2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
-bindM2 f a b = do x <- a; y <- b; f x y
+bind2 :: Monad m => (a -> b -> m c) -> m a -> m b -> m c
+bind2 f a b = do x <- a; y <- b; f x y
 
 -- returns a little-endian list of bits
 word2Bits :: (FiniteBits b, Num b, Ord b, Bits b) => b -> [Bool]
