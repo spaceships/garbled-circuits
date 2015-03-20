@@ -43,7 +43,6 @@ tests = [
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCircCorrect
         , testProperty "Reconstruct is correct" prop_reconstructCorrect
         , testProperty "Serialization is correct" prop_serializeCorrect
-        {-, testProperty "The networking protocols work" prop_protoWorks-}
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -94,14 +93,16 @@ prop_serializeCorrect circ = monadicIO $ do
     (tt, gg, _) <- testCirc circ
     assert $ ensureEither (reconstruct tt <$> decode (encode (halfGates gg))) gg
 
-prop_protoWorks :: Program Circ -> Property
-prop_protoWorks prog = monadicIO $ do
-    inpA <- pick $ vector (inputSize A prog)
-    inpB <- pick $ vector (inputSize B prog)
-    let pt = evalCirc inpA inpB prog
-    run $ forkIO $ void (garblerProto 12345 prog inpA)
-    gg <- run $ evaluatorProto "localhost" 12345 prog inpB
-    assert (gg == pt)
+-- this seems to block 1/2 the time, use examples for integration tests instead 
+{-prop_protoWorks :: Program Circ -> Property-}
+{-prop_protoWorks prog = monadicIO $ do-}
+    {-inpA <- pick $ vector (inputSize A prog)-}
+    {-inpB <- pick $ vector (inputSize B prog)-}
+    {-let pt = evalCirc inpA inpB prog-}
+    {-thread <- run $ forkIO $ void (garblerProto 12345 prog inpA)-}
+    {-gg <- run $ evaluatorProto "localhost" 12345 prog inpB-}
+    {-assert (gg == pt)-}
+    {-run $ killThread thread-}
 
 --------------------------------------------------------------------------------
 -- helpers

@@ -2,7 +2,6 @@
 
 module Crypto.GarbledCircuits.Types where
 
-import           Control.Applicative hiding (Const)
 import           Control.Monad.Reader
 import           Control.Monad.State (StateT, State)
 import           "crypto-random" Crypto.Random
@@ -12,7 +11,6 @@ import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
-import           Debug.Trace
 import           Numeric (showHex)
 
 type Map = M.Map

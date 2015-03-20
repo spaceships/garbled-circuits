@@ -22,7 +22,7 @@ todo list
     * AES hashing - done
     * crypto rng - done
     * garbling optimizations (free xor, half gates) - done
-* network architecture
+* network architecture - done
 * oblivious transfer
 * a small standard library of circuits
 * haddock documentation

@@ -21,51 +21,90 @@ import           Control.Monad
 import           Data.Functor
 import qualified Data.ByteString.Char8 as BS
 import           Data.Serialize
-import           Network.Socket
+import           Data.Word
+import           Network.Socket hiding (send)
 import           Network.BSD
 import           System.IO
+
+import Debug.Trace
 
 type Port = Int
 
 garblerProto :: Port -> Program Circ -> [Bool] -> IO [Bool]
 garblerProto port prog inp = do
     (gg, ctx) <- garble prog
+    traceM "[garblerProto] circuit garbled"
     let myWires    = inputWires A gg ctx inp
         theirPairs = inputPairs B gg ctx
-        outPairs   = outputPairs gg ctx
     listenAt port $ \h -> do
-      hPutSerialize h (halfGates gg, myWires, fst (ctx_key ctx))
+      traceM "[garblerProto] sending circuit"
+      send h (halfGates gg)
+      traceM "[garblerProto] sending my input wires"
+      send h myWires
+      traceM "[garblerProto] sending key"
+      send h (fst (ctx_key ctx))
+      traceM "[garblerProto] performing OT"
       otSendWirelabels h theirPairs
-      wires <- hGetSerialize h
+      traceM "[garblerProto] recieving output"
+      wires <- recieve h
       let result = map (ungarble ctx) wires
-      hPutSerialize h result
+      traceM "[garblerProto] sending ungarbled output"
+      send h result
       return result
 
 evaluatorProto :: HostName -> Port -> Program Circ -> [Bool] -> IO [Bool]
 evaluatorProto host port prog inp = do
     let tt = circ2tt prog
     connectTo host port $ \h -> do
-      (hgs, inpA, key) <- hGetSerialize h
+      traceM "[evaluatorProto] recieving circuit"
+      hgs <- recieve h :: IO [(Wirelabel,Wirelabel)]
+      traceM "[evaluatorProto] recieving garbler input wires"
+      inpA <- recieve h :: IO [Wirelabel]
+      traceM "[evaluatorProto] recieving key"
+      key <- recieve h :: IO ByteString
+      traceM "[evaluatorProto] performing OT"
       inpB <- otRecvWirelabels h inp
+      traceM "[evaluatorProto] evaluating garbled circuit"
       let gg  = reconstruct tt hgs
           k   = initAES (key :: ByteString)
           out = eval gg k inpA inpB
-      hPutSerialize h out
-      hGetSerialize h
+      traceM ("[evaluatorProto] output =\n" ++ showOutput (prog_output gg) out)
+      traceM "[evaluatorProto] sending output wires"
+      send h out
+      traceM "[evaluatorProto] recieving ungarbled output"
+      recieve h
 
-hPutSerialize :: Serialize a => Handle -> a -> IO ()
-hPutSerialize h x = BS.hPutStrLn h (encode x)
+showOutput :: [Ref GarbledGate] -> [Wirelabel] -> String
+showOutput refs = init . unlines . zipWith (\r w -> "\t" ++ show r ++ " " ++ showWirelabel w) refs
 
-hGetSerialize :: Serialize a => Handle -> IO a
-hGetSerialize h = do
-    str <- BS.hGetLine h
-    either (err "hGetGarbledCircuit") return (decode str)
+send :: Serialize a => Handle -> a -> IO ()
+send h x = do
+    let encoding = encode x
+        n        = BS.length encoding
+    traceM ("[send] sending " ++ show n ++ " bytes")
+    BS.hPut h (encode n)
+    BS.hPut h encoding
+
+recieve :: Serialize a => Handle -> IO a
+recieve h = do
+    num <- BS.hGet h 8
+    let n = either (err "recieve") id (decode num)
+    str <- BS.hGet h n
+    traceM ("[recieve] recieved " ++ show n ++ " bytes")
+    either (err "recieve") return (decode str)
 
 otSendWirelabels :: Handle -> [WirelabelPair] -> IO ()
-otSendWirelabels = undefined
+otSendWirelabels h wlps = do
+    traceM "[otSendWirelabels] WARNING: not actually OT"
+    inps <- recieve h
+    let wires = zipWith sel inps wlps
+    send h wires
 
 otRecvWirelabels :: Handle -> [Bool] -> IO [Wirelabel]
-otRecvWirelabels = undefined
+otRecvWirelabels h inps = do
+    traceM "[otRecvWirelabels] WARNING: not actually OT"
+    send h inps
+    recieve h
 
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do

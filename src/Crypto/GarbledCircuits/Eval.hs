@@ -34,7 +34,7 @@ runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 eval :: Program GarbledGate -> AES -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
 eval prog key inpA inpB =
 #ifdef DEBUG
-    trace (showGG prog) result
+    trace (showGG prog inpA inpB) result
 #else
     result
 #endif
@@ -54,7 +54,7 @@ eval' prog = mapM_ evalRef (nonInputRefs prog)
       insertResult ref result
 #ifdef DEBUG
       traceM ("[eval] " ++ show ref ++ show (unRef `fmap` children c)
-          ++ " result = " ++ showWirelabel result)
+          ++ " " ++ typeOf c ++ " result = " ++ showWirelabel result)
 #endif
 
 construct :: GarbledGate -> [Wirelabel] -> Eval Wirelabel
@@ -94,3 +94,8 @@ evalLocal inpA inpB (prog, ctx) =
     outs   = eval prog (snd (ctx_key ctx)) aWires bWires
     aWires = inputWires A prog ctx inpA
     bWires = inputWires B prog ctx inpB
+
+typeOf :: GarbledGate -> String
+typeOf (GarbledInput _ _) = "Input"
+typeOf (FreeXor _ _)      = "FreeXor"
+typeOf (HalfGate _ _ _ _) = "HalfGate"

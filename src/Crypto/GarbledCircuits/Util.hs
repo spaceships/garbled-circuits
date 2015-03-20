@@ -51,10 +51,6 @@ import qualified Data.Set as S
 import           Data.Tuple
 import           Data.Word
 
-#ifdef DEBUG
-import Debug.Trace
-#endif
-
 --------------------------------------------------------------------------------
 -- general helper functions
 
@@ -122,19 +118,21 @@ ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
   Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
   Just b  -> b
 
-showGG :: Program GarbledGate -> String
-showGG prog =
-    "--------------------------------------------------------------------------------\n"
-    ++ "-- env \n" ++ concatMap showGate (M.toList (prog_env prog))
+showGG :: Program GarbledGate -> [Wirelabel] -> [Wirelabel] -> String
+showGG prog inpA inpB = concatMap showGate (M.toList (prog_env prog))
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
-        GarbledInput i p -> show i ++ show p ++ " " ++ outp ref ++ "\n"
+        GarbledInput i p -> show i ++ show p ++ " " ++ outp ref ++ partyInput p i ++ "\n"
         FreeXor  x y     -> "FREEXOR "  ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
         HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
                                       ++ "\t" ++ showWirelabel g ++ "\n"
                                       ++ "\t" ++ showWirelabel e ++ "\n"
     outp r = case r `elemIndex` prog_output prog
       of Just i -> "out" ++ show i; _ -> ""
+
+    partyInput A (InputId i) | length inpA > i = showWirelabel (inpA !! i)
+    partyInput B (InputId i) | length inpB > i = showWirelabel (inpB !! i)
+    partyInput _ _ = ""
 
 showPairs :: Context -> String
 showPairs ctx =
@@ -271,10 +269,6 @@ traverse construct prog = mapM_ eval (M.keys (prog_env prog))
       kids <- mapM getVal (children c)
       let result = construct ref c kids
       modify (M.insert ref result)
-#ifdef DEBUG
-      traceM ("[traverse] " ++ show ref ++ show (unRef <$> children c)
-             ++ " result = " ++ show result)
-#endif
       return result
 
 --------------------------------------------------------------------------------

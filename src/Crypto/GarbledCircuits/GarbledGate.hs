@@ -5,7 +5,6 @@ module Crypto.GarbledCircuits.GarbledGate
     garble
   , halfGates
   , newWirelabels
-  , printGG
   , reconstruct
   , runGarble
   , runGarble'
@@ -27,8 +26,6 @@ import           Data.Functor
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Tuple (swap)
-
-import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- garble a truthtable program
@@ -195,8 +192,3 @@ pairsInsert ref pair =
 truthInsert :: Wirelabel -> Bool -> Garble ()
 truthInsert l b =
   lift.lift $ modify (\st -> st { ctx_truth = M.insert l b (ctx_truth st) })
-
-printGG :: Program Circ -> IO ()
-printGG prog = do
-    (gc, _) <- garble prog
-    putStrLn (showGG gc)
