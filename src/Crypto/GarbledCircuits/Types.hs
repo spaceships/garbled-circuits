@@ -1,17 +1,14 @@
-{-# LANGUAGE PackageImports, GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Crypto.GarbledCircuits.Types where
 
 import           Control.Monad.Reader
-import           Control.Monad.State (StateT, State)
+import           Control.Monad.State (StateT)
 import           Crypto.Cipher.AES128
-import           Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
-import           Numeric (showHex)
-import           System.Entropy
 
 type Map = M.Map
 type Set = S.Set
@@ -117,18 +114,8 @@ prog_inputs :: Party -> Program c -> Set (Ref c)
 prog_inputs PartyA = prog_input_a
 prog_inputs PartyB = prog_input_b
 
-lsb :: Wirelabel -> Bool
-lsb wl = BS.last wl .&. 1 > 0
-
 zeroWirelabel :: Wirelabel
 zeroWirelabel = BS.replicate 16 0
-
-showWirelabel :: Wirelabel -> String
-showWirelabel wl = "wl" ++ showCol (lsb wl) ++ " " ++ hexStr
-    where showCol b = if b then "1" else "0"
-          hexStr = concatMap (pad . hex) $ BS.unpack wl
-          pad s = if length s == 1 then '0' : s else s
-          hex = flip showHex ""
 
 emptyProg :: Program c
 emptyProg = Program { prog_input_a = S.empty
@@ -140,12 +127,6 @@ emptyProg = Program { prog_input_a = S.empty
 emptyEnv :: Env c
 emptyEnv = M.empty
 
-truthVals :: (Bool -> Bool -> Bool) -> [Bool]
-truthVals f = [ f x y | x <- [True, False], y <- [True, False] ]
-
-bitc :: Bool -> Char
-bitc b = if b then '1' else '0'
-
 emptyContext :: Context
 emptyContext = Context M.empty M.empty undefined undefined 0
 
@@ -154,14 +135,6 @@ wlp_true = snd
 
 wlp_false :: WirelabelPair -> Wirelabel
 wlp_false = fst
-
-circ2op :: Circuit -> Operation
-circ2op (Input _ _) = INPUT
-circ2op (Const   _) = CONST
-circ2op (Not     _) = NOT
-circ2op (Xor   _ _) = XOR
-circ2op (And   _ _) = AND
-circ2op (Or    _ _) = OR
 
 emptyTT :: TruthTable
 emptyTT = TT { tt_f    = undefined

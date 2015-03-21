@@ -98,16 +98,16 @@ buildCircuit (Builder c) = Program { prog_input_a = st_inputs_a st
 
 lookupCircuit :: Circuit -> Builder (Maybe (Ref Circuit))
 lookupCircuit circ = do
-  dedupEnv <- gets (st_dedup_env)
-  return (M.lookup circ dedupEnv)
+  dedupEnv <- gets st_dedup_env
+  return $ M.lookup circ dedupEnv
 
 insertRef :: Ref Circuit -> Circuit -> Builder ()
 insertRef ref circ = do
-  derefEnv <- gets (st_deref_env)
-  dedupEnv <- gets (st_dedup_env)
-  modify (\st -> st { st_deref_env = M.insert ref circ derefEnv
-                    , st_dedup_env = M.insert circ ref dedupEnv
-                    })
+  derefEnv <- gets st_deref_env
+  dedupEnv <- gets st_dedup_env
+  modify $ \st -> st { st_deref_env = M.insert ref circ derefEnv
+                     , st_dedup_env = M.insert circ ref dedupEnv
+                     }
 
 nextRef :: Builder (Ref Circuit)
 nextRef = do
@@ -118,7 +118,7 @@ nextRef = do
 nextInputId :: Builder InputId
 nextInputId = do
   i <- gets st_nextInputId
-  modify (\st -> st { st_nextInputId = succ i })
+  modify $ \st -> st { st_nextInputId = succ i }
   return i
 
 intern :: Circuit -> Builder (Ref Circuit)
@@ -155,13 +155,15 @@ and x y = intern (And x y)
 or :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
 or x y = intern (Or x y)
 
--- |Bitwise negation. This gate will be folded into a binary gate above it in the circuit.
+-- |Bitwise negation. 
+-- This gate will be folded into a binary gate above it in the circuit.
 --
 -- Note: programs with toplevel 'Not' or 'Const' are not garbleable.
 not :: Ref Circuit -> Builder (Ref Circuit)
 not x = intern (Not x)
 
--- |Create a constant value. This gate will be folded into a binary gate above it in the circuit.
+-- |Create a constant value. 
+-- This gate will be folded into a binary gate above it in the circuit.
 --
 -- Note: programs with toplevel 'Not' or 'Const' are not garbleable.
 const :: Bool -> Builder (Ref Circuit)

@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, LambdaCase, NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
   ( garble
@@ -18,7 +18,7 @@ import Crypto.GarbledCircuits.Util
 
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Crypto.Cipher.AES128
+import           Crypto.Cipher.AES128 (AESKey128)
 import qualified Data.Bits
 import           Data.Functor
 import qualified Data.Map as M
@@ -82,7 +82,7 @@ encode tt aref bref
     return (FreeXor aref bref, (c0, c0 `xorBytes` r))
 
   | halfGateCompatible tt = do -- the truth table is half-gate compatible
-    let (fg, a, b) = get_fg (tt_f tt)
+    let (fg, a, b) = getFg (tt_f tt)
     k <- getKey
     r <- getR
     a_pair <- maybeFlipWires (tt_negx tt) <$> pairsLookup aref
@@ -111,7 +111,7 @@ newWirelabels = do
 halfGates :: Program GarbledGate -> [(Wirelabel, Wirelabel)]
 halfGates = map vals . filter halfGate . map snd . M.toList . prog_env
   where
-    halfGate (HalfGate _ _ _ _) = True
+    halfGate (HalfGate {}) = True
     halfGate _                  = False
     vals (HalfGate _ _ g e)     = (g,e)
     vals _                      = err "halfGates" "not half gate"
@@ -150,20 +150,20 @@ isXor tt = tt_f tt == XOR
 halfGateCompatible :: TruthTable -> Bool
 halfGateCompatible tt = tt_f tt == AND || tt_f tt == OR
 
-get_fg :: Operation -> (Bool -> Bool -> Bool, Bool, Bool)
-get_fg op = case op of
+getFg :: Operation -> (Bool -> Bool -> Bool, Bool, Bool)
+getFg op = case op of
     AND -> (fg False False False, False, False)
     OR  -> (fg True True True, True, True)
-    _   -> err "get_fg" ("unsupported op: " ++ show op)
+    _   -> err "getFg" ("unsupported op: " ++ show op)
   where
     fg a b c x y = Data.Bits.xor (Data.Bits.xor a x && Data.Bits.xor b y) c
 
 nextIndex :: Garble Int
 nextIndex = do
     c <- lift.lift $ get
-    let ctr = ctx_ctr c
-    lift.lift $ put c { ctx_ctr = succ ctr }
-    return ctr
+    let c' = ctx_ctr c
+    lift.lift $ put c { ctx_ctr = succ c' }
+    return c'
 
 getKey :: Garble AESKey128
 getKey = lift.lift $ gets ctx_key
@@ -192,3 +192,6 @@ pairsInsert ref pair =
 truthInsert :: Wirelabel -> Bool -> Garble ()
 truthInsert l b =
   lift.lift $ modify (\st -> st { ctx_truth = M.insert l b (ctx_truth st) })
+
+convertRef :: Ref a -> Ref b
+convertRef = Ref . unRef

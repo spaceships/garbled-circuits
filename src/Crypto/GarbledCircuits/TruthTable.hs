@@ -125,3 +125,12 @@ boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean (Or  _ _) = True
 boolean _ = False
+
+circ2op :: Circuit -> Operation
+circ2op (Input _ _) = INPUT
+circ2op (Const   _) = CONST
+circ2op (Not     _) = NOT
+circ2op (Xor   _ _) = XOR
+circ2op (And   _ _) = AND
+circ2op (Or    _ _) = OR
+

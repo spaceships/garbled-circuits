@@ -2,14 +2,9 @@ module Example.Adder where
 
 import Crypto.GarbledCircuits
 import Crypto.GarbledCircuits.Language as L
-import Crypto.GarbledCircuits.Util (bind2, err, bits2Word, word2Bits)
-import Crypto.GarbledCircuits.Eval
-import Crypto.GarbledCircuits.TruthTable
-import Crypto.GarbledCircuits.GarbledGate
-import Crypto.GarbledCircuits.Types
+import Crypto.GarbledCircuits.Util (bind2, err)
 
 import Control.Monad
-import Data.Word
 
 --------------------------------------------------------------------------------
 -- 8 bit adder example

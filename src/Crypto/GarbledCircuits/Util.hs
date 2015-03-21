@@ -3,50 +3,42 @@
 module Crypto.GarbledCircuits.Util
   ( bind2
   , bits2Word
-  , convertRef
-  , err
+  , word2Bits
   , evalProg
-  , inputPairs
+  , progSize
+  , ungarble
+  , showWirelabel
   , inputSize
+  , inputPairs
   , inputWires
+  , nextRef
   , inputp
   , internp
-  , lookp
-  , lookupC
-  , mask
-  , nextRef
-  , nonInputRefs
-  , outputPairs
-  , progSize
-  , sel
-  , showPairs
-  , topoLevels
-  , topoSort
-  , truthVals
-  , ungarble
-  , violentLookup
-  , word2Bits
   , writep
+  , lookupC
+  , lsb
+  , sel
   , orBytes
   , xorBytes
   , xorWords
-  , (!)
+  , mask
+  , err
+  , (!!!)
   )
 where
 
 import Crypto.GarbledCircuits.Types
 
 import           Control.Monad.State
-import           Control.Monad.Writer
 import           Data.Bits hiding (xor)
 import qualified Data.Bits
 import qualified Data.ByteString  as BS
-import           Data.Functor
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import           Data.Tuple
 import           Data.Word
+import           Numeric (showHex)
 
 --------------------------------------------------------------------------------
 -- general helper functions
@@ -69,59 +61,52 @@ bits2Word bs = sum $ zipWith select bs pow2s
 pow2s :: (Num b, Bits b) => [b]
 pow2s = [ shift 1 x | x <- [0..] ]
 
-progSize :: Program c -> Int
-progSize = M.size . prog_env
-
 xorBytes :: ByteString -> ByteString -> ByteString
-xorBytes x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x)
-                                                                     ++ " " ++ show (BS.length y))
-        | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
+xorBytes x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
+             | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
 
 orBytes :: ByteString -> ByteString -> ByteString
 orBytes x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
-          | otherwise = BS.pack $ BS.zipWith (.|.) x y
-
-mask :: Bool -> Wirelabel -> Wirelabel
-mask b wl = if b then wl else zeroWirelabel
+            | otherwise = BS.pack $ BS.zipWith (.|.) x y
 
 xorWords :: [Word8] -> [Word8] -> [Word8]
 xorWords = zipWith Data.Bits.xor
 
+progSize :: Program c -> Int
+progSize = M.size . prog_env
+
 inputSize :: Party -> Program c -> Int
 inputSize p prog = S.size (prog_inputs p prog)
-
-nonInputRefs :: Program c -> [Ref c]
-nonInputRefs prog = filter (not.isInput) (M.keys (prog_env prog))
-  where
-    isInput ref = S.member ref (S.union (prog_input_a prog) (prog_input_b prog))
 
 --------------------------------------------------------------------------------
 -- garbled gate helpers
 
+lsb :: Wirelabel -> Bool
+lsb wl = BS.last wl .&. 1 > 0
+
 sel :: Bool -> WirelabelPair -> Wirelabel
 sel b = if b then wlp_true else wlp_false
 
-inputWires :: Party -> Program GarbledGate -> Context -> [Bool] -> [Wirelabel]
-inputWires party prog ctx inp = zipWith sel inp (inputPairs party prog ctx)
+mask :: Bool -> Wirelabel -> Wirelabel
+mask b wl = if b then wl else zeroWirelabel
 
 inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
-inputPairs p prog ctx = map (ctx_pairs ctx !) (S.toList (prog_inputs p prog))
+inputPairs p prog ctx = map (ctx_pairs ctx !!!) (S.toList (prog_inputs p prog))
 
-outputPairs :: Program GarbledGate -> Context -> [WirelabelPair]
-outputPairs prog ctx = map (ctx_pairs ctx !) (prog_output prog)
+inputWires :: Party -> Program GarbledGate -> Context -> [Bool] -> [Wirelabel]
+inputWires party prog ctx inp = zipWith sel inp (inputPairs party prog ctx)
 
 ungarble :: Context -> Wirelabel -> Bool
 ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
   Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
   Just b  -> b
 
-showPairs :: Context -> String
-showPairs ctx =
-    "--------------------------------------------------------------------------------\n"
-    ++ "-- pairs \n" ++ concatMap showPair (M.toList (ctx_pairs ctx))
-  where
-    showPair (ref, pair) = show ref ++ ": true=" ++ showWirelabel (wlp_true pair)
-                                    ++ " false=" ++ showWirelabel (wlp_false pair) ++ "\n"
+showWirelabel :: Wirelabel -> String
+showWirelabel wl = "wl" ++ showCol (lsb wl) ++ " " ++ hexStr
+    where showCol b = if b then "1" else "0"
+          hexStr = concatMap (pad . hex) $ BS.unpack wl
+          pad s = if length s == 1 then '0' : s else s
+          hex = flip showHex ""
 
 --------------------------------------------------------------------------------
 -- polymorphic helper functions for State monads over a Program
@@ -155,77 +140,8 @@ inputp party inp = do
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()
 writep ref circ = modify (\p -> p { prog_env = M.insert ref circ (prog_env p) })
 
-lookp :: (Ord c, MonadState (Program c) m) => Ref c -> m c
-lookp ref = do
-  env <- gets prog_env
-  case M.lookup ref env of
-    Nothing -> error "[lookp] no c"
-    Just c  -> return c
-
 lookupC :: Ref c -> Program c -> c
 lookupC ref prog = fromMaybe (error "[lookupC] no c") (M.lookup ref (prog_env prog))
-
---------------------------------------------------------------------------------
--- polymorphic topoSort
-
-data DFSSt c = DFSSt { dfs_todo :: Set (Ref c)
-                     , dfs_done :: Set (Ref c)
-                     }
-
-type DFS c = WriterT [Ref c] (State (DFSSt c))
-
-topoSort :: CanHaveChildren c => Program c -> [Ref c]
-topoSort prog = evalState (execWriterT (loop prog)) initialState
-  where
-    env = prog_env prog
-
-    initialState = DFSSt { dfs_todo = S.fromList (M.keys env)
-                         , dfs_done = S.empty
-                         }
-
-    loop :: CanHaveChildren c => Program c -> DFS c ()
-    loop prg = next >>= \case
-      Just ref -> visit prg ref >> loop prg
-      Nothing  -> return ()
-
-    visit :: CanHaveChildren c => Program c -> Ref c -> DFS c ()
-    visit prg ref = do
-      done <- gets dfs_done
-      when (S.notMember ref done) $ do
-        let circ = lookupC ref prg
-        mapM_ (visit prg) (children circ)
-        mark ref
-
-    next :: DFS c (Maybe (Ref c))
-    next = do
-      st <- get
-      let todo = dfs_todo st
-      if S.size todo > 0 then do
-        let ref = S.findMin todo
-        put st { dfs_todo = S.delete ref todo }
-        return $ Just ref
-      else
-        return Nothing
-
-    mark :: Ref c -> DFS c ()
-    mark ref = do
-      st <- get
-      put st { dfs_done = S.insert ref (dfs_done st) }
-      tell [ref]
-
-topoLevels :: CanHaveChildren c => Program c -> [[Ref c]]
-topoLevels prog = S.toList . fst <$> foldl foldTopo [] (topoSort prog)
-  where
-    update ref (set, deps) =
-      let kids = children (lookupC ref prog)
-      in if any (`S.member` deps) kids
-         then Left  $ S.insert ref deps
-         else Right (S.insert ref set, S.insert ref deps)
-
-    foldTopo [] ref = [(S.singleton ref, S.singleton ref)]
-    foldTopo ((s,d):sets) ref = case update ref (s,d) of
-      Right (s',d') -> (s',d') : sets
-      Left  d'      -> (s ,d') : foldTopo sets ref
 
 --------------------------------------------------------------------------------
 -- polymorphic evaluation
@@ -235,7 +151,7 @@ evalProg :: (Show b, CanHaveChildren c)
 evalProg construct prog = outputs
   where
     resultMap = execState (traverse construct prog) M.empty
-    outputs   = map (resultMap !) (prog_output prog)
+    outputs   = map (resultMap !!!) (prog_output prog)
 
 traverse :: (Show b, MonadState (Map (Ref c) b) m, CanHaveChildren c)
          => (Ref c -> c -> [b] -> b) -> Program c -> m ()
@@ -255,16 +171,10 @@ traverse construct prog = mapM_ eval (M.keys (prog_env prog))
 --------------------------------------------------------------------------------
 -- evil helpers
 
-convertRef :: Ref a -> Ref b
-convertRef = Ref . unRef
-
 err :: String -> String -> a
 err name warning = error $ "[" ++ name ++ "] " ++ warning
 
-(!) :: (Show k, Show v, Ord k) => Map k v -> k -> v
-(!) = violentLookup
-
-violentLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
-violentLookup m k = case M.lookup k m of
-  Nothing -> err "violentLookup" ("OOPS: " ++ show m)
+(!!!) :: (Show k, Show v, Ord k) => Map k v -> k -> v
+m !!! k = case M.lookup k m of
+  Nothing -> err "!!!" ("OOPS: " ++ show m)
   Just  v -> v

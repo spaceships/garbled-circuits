@@ -1,18 +1,13 @@
-{-# LANGUAGE PackageImports, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
 import Control.Concurrent
-import Control.Monad
 import Data.Functor
 import Data.Maybe
 import Data.Monoid
 import Data.Serialize
-import Data.Word
-import qualified Data.Set as S
-import Debug.Trace
-import System.IO
 
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
@@ -41,12 +36,12 @@ tests = [ testProperty "The colors of new wirelabels are different" prop_colorsD
         ]
 
 prop_colorsDifferent :: Property
-prop_colorsDifferent = testGarble newWirelabels test
-  where
-    test p = lsb (wlp_true p) /= lsb (wlp_false p)
+prop_colorsDifferent = monadicIO $ do
+    p <- testGarble newWirelabels
+    assert $ lsb (wlp_true p) /= lsb (wlp_false p)
 
 prop_lsbOfR :: Property
-prop_lsbOfR = testGarble genR lsb
+prop_lsbOfR = monadicIO (lsb <$> testGarble genR)
 
 prop_arbitraryCircuitCorrect :: Program Circuit -> Property
 prop_arbitraryCircuitCorrect circ = monadicIO $ do
@@ -93,13 +88,13 @@ testCircuit circ = do
     (gg, ctx) <- run (tt2gg tt)
     return (tt, gg, ctx)
 
-testGarble :: Garble a -> (a -> Bool) -> Property
-testGarble g p = monadicIO $ do
+testGarble :: Garble a -> PropertyM IO a
+testGarble g = do
     ((x, _), _) <- run $ runGarble' emptyProg $ do
       updateKey =<< genKey
       updateR   =<< genR
       g
-    assert (p x)
+    return x
 
 isGarblable :: Program Circuit -> Bool
 isGarblable = isJust . circ2tt'

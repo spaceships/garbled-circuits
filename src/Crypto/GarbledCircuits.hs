@@ -5,8 +5,13 @@ module Crypto.GarbledCircuits
   , evaluatorProto
   , connectTo
   , listenAt
-  , Connection (..)
   , simpleSocket
+  , Connection (..)
+  , Party (..)
+  , Ref (..)
+  , Program (..)
+  , Circuit (..)
+  , GarbledGate (..)
   )
 where
 

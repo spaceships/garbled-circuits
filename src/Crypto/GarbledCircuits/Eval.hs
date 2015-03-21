@@ -42,7 +42,7 @@ eval prog key inpA inpB =
     initialResults = M.fromList (zip (S.toList (prog_input_a prog)) inpA) `M.union`
                      M.fromList (zip (S.toList (prog_input_b prog)) inpB)
     resultMap = runEval key initialResults (eval' prog)
-    result    = map (resultMap !) (prog_output prog)
+    result    = map (resultMap !!!) (prog_output prog)
 
 eval' :: Program GarbledGate -> Eval ()
 eval' prog = mapM_ evalRef (nonInputRefs prog)
@@ -81,6 +81,11 @@ getResult ref = fromMaybe (err "getResult" "no ref") <$> (M.lookup ref <$> gets 
 insertResult :: Ref GarbledGate -> Wirelabel -> Eval ()
 insertResult ref result = modify $ second (M.insert ref result)
 
+nonInputRefs :: Program c -> [Ref c]
+nonInputRefs prog = filter (not.isInput) (M.keys (prog_env prog))
+  where
+    isInput ref = S.member ref (S.union (prog_input_a prog) (prog_input_b prog))
+
 -- evaluate a garbled circuit locally
 evalLocal :: [Bool] -> [Bool] -> (Program GarbledGate, Context) -> [Bool]
 evalLocal inpA inpB (prog, ctx) =
@@ -98,7 +103,7 @@ evalLocal inpA inpB (prog, ctx) =
 typeOf :: GarbledGate -> String
 typeOf (GarbledInput _ _) = "Input"
 typeOf (FreeXor _ _)      = "FreeXor"
-typeOf (HalfGate _ _ _ _) = "HalfGate"
+typeOf (HalfGate {})      = "HalfGate"
 
 showGG :: Program GarbledGate -> [Wirelabel] -> [Wirelabel] -> String
 showGG prog inpA inpB = init $ unlines $ map showGate (M.toList (prog_env prog))
@@ -115,4 +120,12 @@ showGG prog inpA inpB = init $ unlines $ map showGate (M.toList (prog_env prog))
     partyInput PartyA (InputId i) | length inpA > i = showWirelabel (inpA !! i)
     partyInput PartyB (InputId i) | length inpB > i = showWirelabel (inpB !! i)
     partyInput _ _ = ""
+
+showPairs :: Context -> String
+showPairs ctx =
+    "--------------------------------------------------------------------------------\n"
+    ++ "-- pairs \n" ++ concatMap showPair (M.toList (ctx_pairs ctx))
+  where
+    showPair (ref, pair) = show ref ++ ": true=" ++ showWirelabel (wlp_true pair)
+                                    ++ " false=" ++ showWirelabel (wlp_false pair) ++ "\n"
 
