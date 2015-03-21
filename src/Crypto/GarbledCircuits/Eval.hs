@@ -92,8 +92,8 @@ evalLocal inpA inpB (prog, ctx) =
   where
     result = map (ungarble ctx) outs
     outs   = eval prog (snd (ctx_key ctx)) aWires bWires
-    aWires = inputWires A prog ctx inpA
-    bWires = inputWires B prog ctx inpB
+    aWires = inputWires PartyA prog ctx inpA
+    bWires = inputWires PartyB prog ctx inpB
 
 typeOf :: GarbledGate -> String
 typeOf (GarbledInput _ _) = "Input"

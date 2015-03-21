@@ -19,7 +19,7 @@ type ByteString = BS.ByteString
 
 newtype Ref a = Ref { unRef :: Word16 } deriving (Enum, Ord, Eq)
 
-data Party = A | B deriving (Enum, Ord, Eq, Show)
+data Party = PartyA | PartyB deriving (Enum, Ord, Eq, Show)
 
 newtype InputId = InputId { getInputId :: Int } deriving (Enum, Ord, Eq)
 
@@ -114,8 +114,8 @@ instance Show InputId where
 -- helpers
 
 prog_inputs :: Party -> Program c -> Set (Ref c)
-prog_inputs A = prog_input_a
-prog_inputs B = prog_input_b
+prog_inputs PartyA = prog_input_a
+prog_inputs PartyB = prog_input_b
 
 lsb :: Wirelabel -> Bool
 lsb wl = BS.last wl .&. 1 > 0

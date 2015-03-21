@@ -88,8 +88,8 @@ intern circ = do
 evalCirc :: [Bool] -> [Bool] -> Program Circ -> [Bool]
 evalCirc inpA inpB prog = evalProg construct prog
   where
-    inputs A = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
-    inputs B = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
+    inputs PartyA = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
+    inputs PartyB = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
 
     construct :: Ref Circ -> Circ -> [Bool] -> Bool
     construct ref (Input i p) [] = case M.lookup ref (inputs p) of
@@ -105,12 +105,13 @@ evalCirc inpA inpB prog = evalProg construct prog
 --------------------------------------------------------------------------------
 -- smart constructors
 
+-- |The 'c_input' function declares an input bit for 'PartyA' or 'PartyB'.
 c_input :: Party -> CircBuilder (Ref Circ)
 c_input p = do i   <- nextInputId
                ref <- intern (Input i p)
                modify $ \st -> case p of
-                 A -> st { st_inputs_a = S.insert ref (st_inputs_a st) }
-                 B -> st { st_inputs_b = S.insert ref (st_inputs_b st) }
+                 PartyA -> st { st_inputs_a = S.insert ref (st_inputs_a st) }
+                 PartyB -> st { st_inputs_b = S.insert ref (st_inputs_b st) }
                return ref
 
 c_xor :: Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)

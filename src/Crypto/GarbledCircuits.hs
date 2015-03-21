@@ -34,8 +34,8 @@ garblerProto :: Port -> Program Circ -> [Bool] -> IO [Bool]
 garblerProto port prog inp = do
     (gg, ctx) <- garble prog
     traceM "[garblerProto] circuit garbled"
-    let myWires    = inputWires A gg ctx inp
-        theirPairs = inputPairs B gg ctx
+    let myWires    = inputWires PartyA gg ctx inp
+        theirPairs = inputPairs PartyB gg ctx
     listenAt port $ \h -> do
       traceM "[garblerProto] sending circuit"
       send h (halfGates gg)

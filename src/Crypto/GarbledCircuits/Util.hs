@@ -130,8 +130,8 @@ showGG prog inpA inpB = concatMap showGate (M.toList (prog_env prog))
     outp r = case r `elemIndex` prog_output prog
       of Just i -> "out" ++ show i; _ -> ""
 
-    partyInput A (InputId i) | length inpA > i = showWirelabel (inpA !! i)
-    partyInput B (InputId i) | length inpB > i = showWirelabel (inpB !! i)
+    partyInput PartyA (InputId i) | length inpA > i = showWirelabel (inpA !! i)
+    partyInput PartyB (InputId i) | length inpB > i = showWirelabel (inpB !! i)
     partyInput _ _ = ""
 
 showPairs :: Context -> String
@@ -167,8 +167,8 @@ inputp :: (Ord c, MonadState (Program c) m) => Party -> c -> m (Ref c)
 inputp party inp = do
   ref <- internp inp
   modify $ \p -> case party of
-    A -> p { prog_input_a = S.insert ref (prog_input_a p) }
-    B -> p { prog_input_b = S.insert ref (prog_input_b p) }
+    PartyA -> p { prog_input_a = S.insert ref (prog_input_a p) }
+    PartyB -> p { prog_input_b = S.insert ref (prog_input_b p) }
   return ref
 
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()

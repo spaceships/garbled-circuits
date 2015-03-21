@@ -7,11 +7,12 @@ import Control.Concurrent
 import Control.Monad
 import "crypto-random" Crypto.Random
 import Data.Functor
-import Data.Monoid
 import Data.Maybe
-import Data.Word
+import Data.Monoid
 import Data.Serialize
+import Data.Word
 import qualified Data.Set as S
+import Debug.Trace
 
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
@@ -43,6 +44,7 @@ tests = [
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCircCorrect
         , testProperty "Reconstruct is correct" prop_reconstructCorrect
         , testProperty "Serialization is correct" prop_serializeCorrect
+        , testProperty "Protocol works" prop_protoWorks
         ]
 
 prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
@@ -74,8 +76,8 @@ prop_lsbOfR = testGarble genR lsb
 prop_arbitraryCircCorrect :: Program Circ -> Property
 prop_arbitraryCircCorrect circ = monadicIO $ do
     (_,gg,ctx) <- testCirc circ
-    inpA <- pick $ vector (inputSize A circ)
-    inpB <- pick $ vector (inputSize B circ)
+    inpA <- pick $ vector (inputSize PartyA circ)
+    inpB <- pick $ vector (inputSize PartyB circ)
     let pt  = evalCirc  inpA inpB circ
         res = evalLocal inpA inpB (gg,ctx)
     assert (res == pt)
@@ -93,26 +95,28 @@ prop_serializeCorrect circ = monadicIO $ do
     (tt, gg, _) <- testCirc circ
     assert $ ensureEither (reconstruct tt <$> decode (encode (halfGates gg))) gg
 
--- this seems to block 1/2 the time, use examples for integration tests instead 
-{-prop_protoWorks :: Program Circ -> Property-}
-{-prop_protoWorks prog = monadicIO $ do-}
-    {-inpA <- pick $ vector (inputSize A prog)-}
-    {-inpB <- pick $ vector (inputSize B prog)-}
-    {-let pt = evalCirc inpA inpB prog-}
-    {-thread <- run $ forkIO $ void (garblerProto 12345 prog inpA)-}
-    {-gg <- run $ evaluatorProto "localhost" 12345 prog inpB-}
-    {-assert (gg == pt)-}
-    {-run $ killThread thread-}
+prop_protoWorks :: Program Circ -> Property
+prop_protoWorks prog = once $ monadicIO $ do
+    inpA <- pick $ vector (inputSize PartyA prog)
+    inpB <- pick $ vector (inputSize PartyB prog)
+    let pt = evalCirc inpA inpB prog
+    port <- run $ generate (choose (1025,65536))
+    chan <- run newChan
+    run $ forkIO $ do
+      res <- garblerProto port prog inpA
+      writeChan chan res
+    ggEval <- run $ evaluatorProto "localhost" port prog inpB
+    ggGarb <- run $ readChan chan
+    assert (ggEval == pt && ggGarb == pt)
 
 --------------------------------------------------------------------------------
 -- helpers
 
 testCirc :: Program Circ -> PropertyM IO (Program TruthTable, Program GarbledGate, Context)
 testCirc circ = do
-    let tt = circ2tt' circ
-    pre (isJust tt) -- ensure that the circ is garbleable
-    (gg, ctx) <- run (tt2gg (fromJust tt))
-    return (fromJust tt, gg, ctx)
+    let tt = circ2tt circ
+    (gg, ctx) <- run (tt2gg tt)
+    return (tt, gg, ctx)
 
 testGarble :: Garble a -> (a -> Bool) -> Property
 testGarble g p = monadicIO $ do
@@ -123,6 +127,9 @@ testGarble g p = monadicIO $ do
           g
     assert (p x)
 
+isGarblable :: Program Circ -> Bool
+isGarblable = isJust . circ2tt'
+
 --------------------------------------------------------------------------------
 -- instances
 
@@ -130,14 +137,17 @@ instance Arbitrary Operation where
   arbitrary = elements [XOR, AND, OR, INPUT, NOT, CONST]
 
 instance Arbitrary (Program Circ) where
-  arbitrary = do
+  arbitrary = arbCirc `suchThat` isGarblable
+
+arbCirc :: Gen (Program Circ)
+arbCirc = do
     (x,_) <- mkCircuit =<< vector 20
     let x' = do ref <- x; return [ref]
     return (buildCirc x')
 
 mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
 mkCircuit (INPUT:ops) = do
-    p <- elements [A,B]
+    p <- elements [PartyA,PartyB]
     return (c_input p, ops)
 
 mkCircuit (CONST:ops) = do
@@ -155,7 +165,7 @@ mkCircuit (op:ops) = do
     return (c, ops'')
 
 mkCircuit [] = do
-    p <- elements [A,B]
+    p <- elements [PartyA,PartyB]
     return (c_input p, [])
 
 op2circ :: Operation -> Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
