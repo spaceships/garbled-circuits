@@ -13,5 +13,5 @@ main = do
     args <- getArgs
     let port  = read (args !! 0)
         input = word2Bits (read (args !! 1) :: Word8)
-    result <- garblerProto port circ_8BitAdder input
+    result <- garblerProto port adder8Bit input
     print (bits2Word result :: Word8)

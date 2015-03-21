@@ -1,11 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Crypto.GarbledCircuits
-  (
-    garblerProto
+  ( garblerProto
   , evaluatorProto
-  , module Crypto.GarbledCircuits.Language
-  ,
+  , Builder
+  , buildCircuit
+  , evalCircuit
   )
 where
 
@@ -30,7 +30,7 @@ import Debug.Trace
 
 type Port = Int
 
-garblerProto :: Port -> Program Circ -> [Bool] -> IO [Bool]
+garblerProto :: Port -> Program Circuit -> [Bool] -> IO [Bool]
 garblerProto port prog inp = do
     (gg, ctx) <- garble prog
     traceM "[garblerProto] circuit garbled"
@@ -52,7 +52,7 @@ garblerProto port prog inp = do
       send h result
       return result
 
-evaluatorProto :: HostName -> Port -> Program Circ -> [Bool] -> IO [Bool]
+evaluatorProto :: HostName -> Port -> Program Circuit -> [Bool] -> IO [Bool]
 evaluatorProto host port prog inp = do
     let tt = circ2tt prog
     connectTo host port $ \h -> do

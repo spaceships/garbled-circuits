@@ -1,6 +1,5 @@
 module Crypto.GarbledCircuits.Eval
-  (
-    evalLocal
+  ( evalLocal
   , eval
   )
 where
@@ -59,14 +58,14 @@ eval' prog = mapM_ evalRef (nonInputRefs prog)
 
 construct :: GarbledGate -> [Wirelabel] -> Eval Wirelabel
 construct (FreeXor  _ _    ) [a,b] =
-    return (a `xor` b)
+    return (a `xorBytes` b)
 construct (HalfGate _ _ g e) [a,b] = do
     j1 <- nextIndex
     j2 <- nextIndex
     k  <- ask
-    let wg  = hash k a j1 `xor` (lsb a `mask` g)
-        we  = hash k b j2 `xor` (lsb b `mask` (e `xor` a))
-    return (wg `xor` we)
+    let wg  = hash k a j1 `xorBytes` (lsb a `mask` g)
+        we  = hash k b j2 `xorBytes` (lsb b `mask` (e `xorBytes` a))
+    return (wg `xorBytes` we)
 construct gate args = err "construct" ("unknown pattern: \n" ++ show gate ++ "\n" ++ show args)
 
 nextIndex :: Eval Int

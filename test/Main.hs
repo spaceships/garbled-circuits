@@ -20,7 +20,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
 import Crypto.GarbledCircuits
-import Crypto.GarbledCircuits.Language
+import qualified Crypto.GarbledCircuits.Language as L
 import Crypto.GarbledCircuits.GarbledGate
 import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Encryption
@@ -28,42 +28,17 @@ import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
-import Example.Adder
-
 main :: IO ()
 main = defaultMainWithOpts tests mempty { ropt_color_mode = Just ColorAlways }
 
 tests :: [Test]
-tests = [
-          testProperty "TruthTable 2 bit adder is correct" prop_2BitAdderTT
-        , testProperty "TruthTable 8 bit adder is correct" prop_8BitAdderTT
-        , testProperty "Garbled 2 bit adder is correct" prop_2BitAdderGG
-        , testProperty "Garbled 8 bit adder is correct" prop_8BitAdderGG
-        , testProperty "The colors of new wirelabels are different" prop_colorsDifferent
+tests = [ testProperty "The colors of new wirelabels are different" prop_colorsDifferent
         , testProperty "lsb R always equals 1" prop_lsbOfR
         , testProperty "Arbitrary circuit is correct" prop_arbitraryCircCorrect
         , testProperty "Reconstruct is correct" prop_reconstructCorrect
         , testProperty "Serialization is correct" prop_serializeCorrect
         , testProperty "Protocol works" prop_protoWorks
         ]
-
-prop_2BitAdderTT :: (Bool, Bool) -> (Bool, Bool) -> Bool
-prop_2BitAdderTT x y = eval_2BitAdder x y == eval_2BitAdderTT x y
-
-prop_8BitAdderTT :: Word8 -> Word8 -> Bool
-prop_8BitAdderTT x y = eval_8BitAdder x y == eval_8BitAdderTT x y
-
-prop_2BitAdderGG :: (Bool, Bool) -> (Bool, Bool) -> Property
-prop_2BitAdderGG x y = monadicIO $ do
-  let pt = eval_2BitAdder x y
-  gg <- run $ eval_2BitAdderGG x y
-  assert (gg == pt)
-
-prop_8BitAdderGG :: Word8 -> Word8 -> Property
-prop_8BitAdderGG x y = monadicIO $ do
-  let pt = eval_8BitAdder x y
-  gg <- run $ eval_8BitAdderGG x y
-  assert (gg == pt)
 
 prop_colorsDifferent :: Property
 prop_colorsDifferent = testGarble newWirelabels test
@@ -148,15 +123,15 @@ arbCirc = do
 mkCircuit :: [Operation] -> Gen (CircBuilder (Ref Circ), [Operation])
 mkCircuit (INPUT:ops) = do
     p <- elements [PartyA,PartyB]
-    return (c_input p, ops)
+    return (L.input p, ops)
 
 mkCircuit (CONST:ops) = do
     b <- arbitrary
-    return (c_const b, ops)
+    return (L.const b, ops)
 
 mkCircuit (NOT:ops) = do
     (child, ops') <- mkCircuit ops
-    return (c_not =<< child, ops')
+    return (L.not =<< child, ops')
 
 mkCircuit (op:ops) = do
     (x,ops')  <- mkCircuit ops
@@ -166,10 +141,10 @@ mkCircuit (op:ops) = do
 
 mkCircuit [] = do
     p <- elements [PartyA,PartyB]
-    return (c_input p, [])
+    return (L.input p, [])
 
 op2circ :: Operation -> Ref Circ -> Ref Circ -> CircBuilder (Ref Circ)
-op2circ XOR x y = c_xor x y
-op2circ AND x y = c_and x y
-op2circ OR  x y = c_or  x y
+op2circ XOR x y = L.xor x y
+op2circ AND x y = L.and x y
+op2circ OR  x y = L.or  x y
 op2circ _    _ _ = err "op2circ" "unsupported operation"

@@ -1,8 +1,7 @@
 {-# LANGUAGE PackageImports, LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
-  ( 
-    garble
+  ( garble
   , halfGates
   , newWirelabels
   , reconstruct
@@ -30,7 +29,7 @@ import           Data.Tuple (swap)
 --------------------------------------------------------------------------------
 -- garble a truthtable program
 
-garble :: Program Circ -> IO (Program GarbledGate, Context)
+garble :: Program Circuit -> IO (Program GarbledGate, Context)
 garble = tt2gg . circ2tt
 
 runGarble :: SystemRNG -> Program TruthTable -> Garble a -> (Program GarbledGate, Context)
@@ -80,8 +79,8 @@ encode tt aref bref
     a_pair <- maybeFlipWires (tt_negx tt) <$> pairsLookup aref
     b_pair <- maybeFlipWires (tt_negy tt) <$> pairsLookup bref
     r      <- getR
-    let c0 = wlp_false a_pair `xor` wlp_false b_pair
-    return (FreeXor aref bref, (c0, c0 `xor` r))
+    let c0 = wlp_false a_pair `xorBytes` wlp_false b_pair
+    return (FreeXor aref bref, (c0, c0 `xorBytes` r))
 
   | halfGateCompatible tt = do -- the truth table is half-gate compatible
     let (fg, a, b) = get_fg (tt_f tt)
@@ -93,12 +92,14 @@ encode tt aref bref
         pb = lsb (wlp_false b_pair)
     j  <- nextIndex
     j' <- nextIndex
-    let g  = hash k (wlp_false a_pair) j  `xor` hash k (wlp_true a_pair)  j `xor` mask (Data.Bits.xor pb b) r
-        wg = hash k (sel pa a_pair) j     `xor` mask (fg pa pb) r
-        e  = hash k (wlp_false b_pair) j' `xor` hash k (wlp_true b_pair)  j' `xor` sel a a_pair
+    let g  = hash k (wlp_false a_pair) j  `xorBytes` hash k (wlp_true a_pair)  j 
+                                          `xorBytes` mask (Data.Bits.xor pb b) r
+        wg = hash k (sel pa a_pair) j     `xorBytes` mask (fg pa pb) r
+        e  = hash k (wlp_false b_pair) j' `xorBytes` hash k (wlp_true b_pair)  j' 
+                                          `xorBytes` sel a a_pair
         we = hash k (sel pb b_pair) j'
-        w  = wg `xor` we
-    return (HalfGate aref bref g e, (w, w `xor` r))
+        w  = wg `xorBytes` we
+    return (HalfGate aref bref g e, (w, w `xorBytes` r))
 
   | otherwise = err "encode" ("unsupported gate: " ++ show tt)
 
@@ -106,7 +107,7 @@ newWirelabels :: Garble WirelabelPair
 newWirelabels = do
     a <- randBlock
     r <- getR
-    return (a, a `xor` r)
+    return (a, a `xorBytes` r)
 
 halfGates :: Program GarbledGate -> [(Wirelabel, Wirelabel)]
 halfGates = map vals . filter halfGate . map snd . M.toList . prog_env

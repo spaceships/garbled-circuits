@@ -1,9 +1,7 @@
 {-# LANGUAGE LambdaCase, ScopedTypeVariables, FlexibleContexts #-}
 
 module Crypto.GarbledCircuits.Util
-  (
-    bitOr
-  , bind2
+  ( bind2
   , bits2Word
   , convertRef
   , err
@@ -30,7 +28,8 @@ module Crypto.GarbledCircuits.Util
   , violentLookup
   , word2Bits
   , writep
-  , xor
+  , orBytes
+  , xorBytes
   , xorWords
   , (!)
   )
@@ -75,13 +74,13 @@ pow2s = [ shift 1 x | x <- [0..] ]
 progSize :: Program c -> Int
 progSize = M.size . prog_env
 
-xor :: ByteString -> ByteString -> ByteString
-xor x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x)
+xorBytes :: ByteString -> ByteString -> ByteString
+xorBytes x y | BS.length x /= BS.length y = err "xor" ("unequal length inputs: " ++ show (BS.length x)
                                                                      ++ " " ++ show (BS.length y))
         | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
 
-bitOr :: ByteString -> ByteString -> ByteString
-bitOr x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
+orBytes :: ByteString -> ByteString -> ByteString
+orBytes x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
           | otherwise = BS.pack $ BS.zipWith (.|.) x y
 
 mask :: Bool -> Wirelabel -> Wirelabel

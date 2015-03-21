@@ -23,15 +23,15 @@ data Party = PartyA | PartyB deriving (Enum, Ord, Eq, Show)
 
 newtype InputId = InputId { getInputId :: Int } deriving (Enum, Ord, Eq)
 
-data Circ = Input InputId Party
-          | Const Bool
-          | Not (Ref Circ)
-          | Xor (Ref Circ) (Ref Circ)
-          | And (Ref Circ) (Ref Circ)
-          | Or  (Ref Circ) (Ref Circ)
-          deriving (Eq, Ord, Show)
+data Circuit = Input InputId Party
+             | Const Bool
+             | Not (Ref Circuit)
+             | Xor (Ref Circuit) (Ref Circuit)
+             | And (Ref Circuit) (Ref Circuit)
+             | Or  (Ref Circuit) (Ref Circuit)
+             deriving (Eq, Ord, Show)
 
--- it is convenient to have a Circ without associated data
+-- it is convenient to have a Circuit without associated data
 data Operation = INPUT
                | CONST
                | NOT
@@ -88,7 +88,7 @@ data Context = Context { ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
 class CanHaveChildren c where
   children :: c -> [Ref c]
 
-instance CanHaveChildren Circ where
+instance CanHaveChildren Circuit where
   children (Not x  ) = [x]
   children (Xor x y) = [x,y]
   children (And x y) = [x,y]
@@ -155,7 +155,7 @@ wlp_true = snd
 wlp_false :: WirelabelPair -> Wirelabel
 wlp_false = fst
 
-circ2op :: Circ -> Operation
+circ2op :: Circuit -> Operation
 circ2op (Input _ _) = INPUT
 circ2op (Const   _) = CONST
 circ2op (Not     _) = NOT

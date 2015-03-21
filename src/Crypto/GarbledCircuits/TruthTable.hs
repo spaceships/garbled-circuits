@@ -1,8 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.TruthTable
-  ( 
-    circ2tt
+  ( circ2tt
   , circ2tt'
   , evalTT
   )
@@ -21,20 +20,20 @@ import           Data.Functor
 --------------------------------------------------------------------------------
 -- transform circ to tt
 
--- NotBinary gets passed around as we transform a Circ to a TruthTable.
+-- NotBinary gets passed around as we transform a Circuit to a TruthTable.
 data NotBinary = UNot (Ref TruthTable)
                | UConst Bool
                deriving (Eq, Ord, Show)
 
-circ2tt :: Program Circ -> Program TruthTable
+circ2tt :: Program Circuit -> Program TruthTable
 circ2tt = fromJust . circ2tt'
 
-circ2tt' :: Program Circ -> Maybe (Program TruthTable)
+circ2tt' :: Program Circuit -> Maybe (Program TruthTable)
 circ2tt' prog_circ = if success then Just prog_tt else Nothing
   where
     (success, prog_tt) = runState (transform $ prog_output prog_circ) emptyProg
 
-    transform :: [Ref Circ] -> State (Program TruthTable) Bool
+    transform :: [Ref Circuit] -> State (Program TruthTable) Bool
     transform outs = do
         eitherOuts <- mapM trans outs
         case mapM check eitherOuts of
@@ -47,7 +46,7 @@ circ2tt' prog_circ = if success then Just prog_tt else Nothing
         check (Left _)    = Nothing
 
     --return a circ if it is a unary gate in order to fold it into its parent
-    trans :: Ref Circ -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
+    trans :: Ref Circuit -> State (Program TruthTable) (Either NotBinary (Ref TruthTable))
     trans ref = do
       let circ = lookupC ref prog_circ
       cs <- mapM trans (children circ)
@@ -121,7 +120,7 @@ evalTT inpA inpB prog = evalProg construct prog
 --------------------------------------------------------------------------------
 -- helper functions
 
-boolean :: Circ -> Bool
+boolean :: Circuit -> Bool
 boolean (Xor _ _) = True
 boolean (And _ _) = True
 boolean (Or  _ _) = True

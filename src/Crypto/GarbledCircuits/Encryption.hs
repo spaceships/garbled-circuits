@@ -30,9 +30,9 @@ import           Data.Word
 -- The AES-based hash function from the halfgates paper (p8)
 -- Uses native hw instructions if available
 hash :: AES -> Wirelabel -> Int -> Wirelabel
-hash key x i = encryptECB key k `xor` k
+hash key x i = encryptECB key k `xorBytes` k
   where
-    k = double x `xor` pad 16 (Ser.encode i)
+    k = double x `xorBytes` pad 16 (Ser.encode i)
 
 pad :: Int -> ByteString -> ByteString
 pad n ct = BS.append (BS.replicate (n - BS.length ct) 0) ct
@@ -62,7 +62,7 @@ genR :: Garble Wirelabel
 genR = do
     b <- randBlock
     let color = pad 16 $ Ser.encode (1 :: Int)
-        wl    = bitOr color b
+        wl    = orBytes color b
     return wl
 
 randBlock :: Garble ByteString
