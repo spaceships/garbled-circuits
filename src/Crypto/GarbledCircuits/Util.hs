@@ -19,7 +19,6 @@ module Crypto.GarbledCircuits.Util
   , outputPairs
   , progSize
   , sel
-  , showGG
   , showPairs
   , topoLevels
   , topoSort
@@ -43,7 +42,6 @@ import           Data.Bits hiding (xor)
 import qualified Data.Bits
 import qualified Data.ByteString  as BS
 import           Data.Functor
-import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
@@ -116,22 +114,6 @@ ungarble :: Context -> Wirelabel -> Bool
 ungarble ctx wl = case M.lookup wl (ctx_truth ctx) of
   Nothing -> err "ungarble" $ "unknown wirelabel: " ++ showWirelabel wl
   Just b  -> b
-
-showGG :: Program GarbledGate -> [Wirelabel] -> [Wirelabel] -> String
-showGG prog inpA inpB = concatMap showGate (M.toList (prog_env prog))
-  where
-    showGate (ref, gg) = show ref ++ ": " ++ case gg of
-        GarbledInput i p -> show i ++ show p ++ " " ++ outp ref ++ partyInput p i ++ "\n"
-        FreeXor  x y     -> "FREEXOR "  ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
-        HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
-                                      ++ "\t" ++ showWirelabel g ++ "\n"
-                                      ++ "\t" ++ showWirelabel e ++ "\n"
-    outp r = case r `elemIndex` prog_output prog
-      of Just i -> "out" ++ show i; _ -> ""
-
-    partyInput PartyA (InputId i) | length inpA > i = showWirelabel (inpA !! i)
-    partyInput PartyB (InputId i) | length inpB > i = showWirelabel (inpB !! i)
-    partyInput _ _ = ""
 
 showPairs :: Context -> String
 showPairs ctx =

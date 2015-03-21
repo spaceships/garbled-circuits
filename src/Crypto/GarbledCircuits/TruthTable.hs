@@ -8,7 +8,7 @@ module Crypto.GarbledCircuits.TruthTable
 where
 
 import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Util hiding (xor)
+import Crypto.GarbledCircuits.Util
 
 import qualified Data.Set as S
 import qualified Data.Map as M

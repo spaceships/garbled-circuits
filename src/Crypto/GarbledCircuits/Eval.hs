@@ -13,6 +13,7 @@ import           Control.Monad.State
 import           Control.Monad.Reader
 import           Crypto.Cipher.AES
 import           Data.Functor
+import           Data.List (elemIndex)
 import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
@@ -98,3 +99,20 @@ typeOf :: GarbledGate -> String
 typeOf (GarbledInput _ _) = "Input"
 typeOf (FreeXor _ _)      = "FreeXor"
 typeOf (HalfGate _ _ _ _) = "HalfGate"
+
+showGG :: Program GarbledGate -> [Wirelabel] -> [Wirelabel] -> String
+showGG prog inpA inpB = init $ unlines $ map showGate (M.toList (prog_env prog))
+  where
+    showGate (ref, gg) = show ref ++ ": " ++ case gg of
+        GarbledInput i p -> show i ++ " " ++ show p ++ " " ++ outp ref ++ partyInput p i
+        FreeXor  x y     -> "FREEXOR "  ++ show x ++ " " ++ show y ++ " " ++ outp ref
+        HalfGate x y g e -> "HALFGATE " ++ show x ++ " " ++ show y ++ " " ++ outp ref ++ "\n"
+                                      ++ "\t" ++ showWirelabel g ++ "\n"
+                                      ++ "\t" ++ showWirelabel e
+    outp r = case r `elemIndex` prog_output prog
+      of Just i -> "out" ++ show i; _ -> ""
+
+    partyInput PartyA (InputId i) | length inpA > i = showWirelabel (inpA !! i)
+    partyInput PartyB (InputId i) | length inpB > i = showWirelabel (inpB !! i)
+    partyInput _ _ = ""
+
