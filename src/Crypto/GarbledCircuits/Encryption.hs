@@ -18,12 +18,12 @@ import Crypto.GarbledCircuits.Util
 import qualified Data.ByteString    as BS
 import           Control.Monad.State
 import           Crypto.Cipher.AES128
-import           "crypto-random" Crypto.Random
 import           Data.Bits ((.&.), (.|.))
 import qualified Data.Bits          as Bits
 import           Data.Maybe
 import qualified Data.Serialize     as Ser
 import           Data.Word
+import           System.Entropy
 
 --------------------------------------------------------------------------------
 -- encryption and decryption for wirelabels
@@ -68,18 +68,12 @@ genR = do
     return wl
 
 randBlock :: Garble ByteString
-randBlock = do
-  gen <- lift get
-  let (blk, gen') = cprgGenerate 16 gen
-  lift $ put gen'
-  return blk
+randBlock = liftIO (getEntropy 16)
 
 randBool :: Garble Bool
 randBool = do
-  gen <- lift get
-  let (blk, gen') = cprgGenerate 1 gen
-      w8          = head (BS.unpack blk)
-  lift (put gen')
+  blk <- randBlock
+  let w8 = head (BS.unpack blk)
   return (w8 .&. 1 > 0)
 
 updateKey :: AESKey128 -> Garble ()

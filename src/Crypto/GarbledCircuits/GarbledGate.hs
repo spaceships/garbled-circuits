@@ -19,7 +19,6 @@ import Crypto.GarbledCircuits.Util
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Crypto.Cipher.AES128
-import           "crypto-random" Crypto.Random
 import qualified Data.Bits
 import           Data.Functor
 import qualified Data.Map as M
@@ -32,25 +31,25 @@ import           Data.Tuple (swap)
 garble :: Program Circuit -> IO (Program GarbledGate, Context)
 garble = tt2gg . circ2tt
 
-runGarble :: SystemRNG -> Program TruthTable -> Garble a -> (Program GarbledGate, Context)
-runGarble gen prog_tt g = let ((_, p), c) = runGarble' gen prog_tt g in (p, c)
+runGarble :: Program TruthTable -> Garble a -> IO (Program GarbledGate, Context)
+runGarble prog_tt g = do
+    ((_, p), c) <- runGarble' prog_tt g 
+    return (p, c)
 
-runGarble' :: SystemRNG -> Program TruthTable -> Garble a -> ((a, Program GarbledGate), Context)
-runGarble' gen prog_tt =
-    flip runState emptyContext
-  . flip runReaderT prog_tt
-  . flip evalStateT gen
-  . flip runStateT emptyProg
+runGarble' :: Program TruthTable -> Garble a -> IO ((a, Program GarbledGate), Context)
+runGarble' prog_tt =
+      flip runStateT emptyContext
+    . flip runReaderT prog_tt
+    . flip runStateT emptyProg
 
 tt2gg :: Program TruthTable -> IO (Program GarbledGate, Context)
 tt2gg prog_tt = do
-    gen <- cprgCreate <$> createEntropyPool
-    let (prog_gg, ctx) = runGarble gen prog_tt $ do
-          updateKey =<< genKey
-          updateR   =<< genR
-          -- TT refs are topologically ordered
-          mapM_ garbleGate (M.keys (prog_env prog_tt))
-        outs     = map convertRef (prog_output prog_tt)
+    (prog_gg, ctx) <- runGarble prog_tt $ do
+      updateKey =<< genKey
+      updateR   =<< genR
+      -- TT refs are topologically ordered
+      mapM_ garbleGate (M.keys (prog_env prog_tt))
+    let outs     = map convertRef (prog_output prog_tt)
         prog_gg' = prog_gg { prog_output = outs }
     return (prog_gg', ctx)
 

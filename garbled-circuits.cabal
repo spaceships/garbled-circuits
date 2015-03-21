@@ -27,7 +27,7 @@ library
                      , cereal
                      , cipher-aes128
                      , containers
-                     , crypto-random
+                     , entropy
                      , mtl
                      , network
 
@@ -46,7 +46,7 @@ test-suite test-garbled-circuits
                      , QuickCheck
                      , cereal
                      , containers
-                     , crypto-random
+                     , entropy
                      , garbled-circuits
                      , test-framework
                      , test-framework-quickcheck2

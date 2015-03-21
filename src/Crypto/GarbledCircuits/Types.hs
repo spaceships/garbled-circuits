@@ -4,7 +4,6 @@ module Crypto.GarbledCircuits.Types where
 
 import           Control.Monad.Reader
 import           Control.Monad.State (StateT, State)
-import           "crypto-random" Crypto.Random
 import           Crypto.Cipher.AES128
 import           Data.Bits
 import qualified Data.ByteString as BS
@@ -12,6 +11,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Word
 import           Numeric (showHex)
+import           System.Entropy
 
 type Map = M.Map
 type Set = S.Set
@@ -70,10 +70,10 @@ data GarbledGate = GarbledInput InputId Party
                  | HalfGate (Ref GarbledGate) (Ref GarbledGate) Wirelabel Wirelabel
                  deriving (Show, Eq, Ord)
 
-type Garble = StateT (Program GarbledGate)
-                (StateT SystemRNG
-                  (ReaderT (Program TruthTable)
-                    (State Context)))
+type Garble = StateT (Program GarbledGate) 
+                (ReaderT (Program TruthTable) 
+                  (StateT Context
+                    IO))
 
 data Context = Context { ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
                        , ctx_truth :: Map Wirelabel Bool

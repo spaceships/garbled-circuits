@@ -5,7 +5,6 @@ module Main where
 
 import Control.Concurrent
 import Control.Monad
-import "crypto-random" Crypto.Random
 import Data.Functor
 import Data.Maybe
 import Data.Monoid
@@ -96,11 +95,10 @@ testCircuit circ = do
 
 testGarble :: Garble a -> (a -> Bool) -> Property
 testGarble g p = monadicIO $ do
-    gen <- run $ fmap cprgCreate createEntropyPool
-    let ((x, _), _) = runGarble' gen emptyProg $ do
-          updateKey =<< genKey
-          updateR   =<< genR
-          g
+    ((x, _), _) <- run $ runGarble' emptyProg $ do
+      updateKey =<< genKey
+      updateR   =<< genR
+      g
     assert (p x)
 
 isGarblable :: Program Circuit -> Bool
