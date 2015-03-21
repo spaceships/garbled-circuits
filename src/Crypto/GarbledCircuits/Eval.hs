@@ -11,7 +11,7 @@ import Crypto.GarbledCircuits.Util
 import           Control.Arrow (first, second)
 import           Control.Monad.State
 import           Control.Monad.Reader
-import           Crypto.Cipher.AES
+import           Crypto.Cipher.AES128
 import           Data.Functor
 import           Data.List (elemIndex)
 import qualified Data.Map as M
@@ -26,12 +26,12 @@ import Debug.Trace
 -- garbled evaluator
 
 type ResultMap = Map (Ref GarbledGate) Wirelabel
-type Eval = ReaderT AES (State (Int, ResultMap))
+type Eval = ReaderT AESKey128 (State (Int, ResultMap))
 
-runEval :: AES -> ResultMap -> Eval a -> ResultMap
+runEval :: AESKey128 -> ResultMap -> Eval a -> ResultMap
 runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 
-eval :: Program GarbledGate -> AES -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
+eval :: Program GarbledGate -> AESKey128 -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
 eval prog key inpA inpB =
 #ifdef DEBUG
     trace (showGG prog inpA inpB) result
@@ -91,7 +91,7 @@ evalLocal inpA inpB (prog, ctx) =
     result
   where
     result = map (ungarble ctx) outs
-    outs   = eval prog (snd (ctx_key ctx)) aWires bWires
+    outs   = eval prog (ctx_key ctx) aWires bWires
     aWires = inputWires PartyA prog ctx inpA
     bWires = inputWires PartyB prog ctx inpB
 

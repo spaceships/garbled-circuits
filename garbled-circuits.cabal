@@ -25,7 +25,7 @@ library
   build-depends:       base >=4.7 && <4.8
                      , bytestring
                      , cereal
-                     , cipher-aes
+                     , cipher-aes128
                      , containers
                      , crypto-random
                      , mtl

@@ -17,10 +17,11 @@ import Crypto.GarbledCircuits.Util
 
 import qualified Data.ByteString    as BS
 import           Control.Monad.State
-import           Crypto.Cipher.AES
+import           Crypto.Cipher.AES128
 import           "crypto-random" Crypto.Random
 import           Data.Bits ((.&.), (.|.))
 import qualified Data.Bits          as Bits
+import           Data.Maybe
 import qualified Data.Serialize     as Ser
 import           Data.Word
 
@@ -29,8 +30,8 @@ import           Data.Word
 
 -- The AES-based hash function from the halfgates paper (p8)
 -- Uses native hw instructions if available
-hash :: AES -> Wirelabel -> Int -> Wirelabel
-hash key x i = encryptECB key k `xorBytes` k
+hash :: AESKey128 -> Wirelabel -> Int -> Wirelabel
+hash key x i = encryptBlock key k `xorBytes` k
   where
     k = double x `xorBytes` pad 16 (Ser.encode i)
 
@@ -53,10 +54,11 @@ shiftLeft (b:bs) = let (bs', c) = shiftLeft bs
                        b'  = Bits.shiftL b 1 .|. c
                    in (b':bs', msb)
 
-genKey :: Garble (Key, AES)
+genKey :: Garble AESKey128
 genKey = do
   key <- randBlock
-  return (key, initAES key)
+  let k = fromMaybe (err "genKey" "bad key") (buildKey key)
+  return k
 
 genR :: Garble Wirelabel
 genR = do
@@ -80,7 +82,7 @@ randBool = do
   lift (put gen')
   return (w8 .&. 1 > 0)
 
-updateKey :: (Key, AES) -> Garble ()
+updateKey :: AESKey128 -> Garble ()
 updateKey k = lift.lift $ modify (\st -> st { ctx_key = k })
 
 updateR :: Wirelabel -> Garble ()

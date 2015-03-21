@@ -18,7 +18,7 @@ import Crypto.GarbledCircuits.Util
 
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Crypto.Cipher.AES
+import           Crypto.Cipher.AES128
 import           "crypto-random" Crypto.Random
 import qualified Data.Bits
 import           Data.Functor
@@ -166,8 +166,8 @@ nextIndex = do
     lift.lift $ put c { ctx_ctr = succ ctr }
     return ctr
 
-getKey :: Garble AES
-getKey = lift.lift $ gets (snd.ctx_key)
+getKey :: Garble AESKey128
+getKey = lift.lift $ gets ctx_key
 
 getR :: Garble Wirelabel
 getR = lift.lift $ gets ctx_r

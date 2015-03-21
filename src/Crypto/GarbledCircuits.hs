@@ -16,7 +16,7 @@ import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
 
-import           Crypto.Cipher.AES
+import           Crypto.Cipher.AES128
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
 import           Data.Serialize
@@ -48,7 +48,7 @@ garblerProto prog inp con = do
       traceM "[garblerProto] sending my input wires"
       send con myWires
       traceM "[garblerProto] sending key"
-      send con (fst (ctx_key ctx))
+      send con (ctx_key ctx)
       traceM "[garblerProto] performing OT"
       otSendWirelabels con theirPairs
       traceM "[garblerProto] recieving output"
@@ -66,13 +66,12 @@ evaluatorProto prog inp con = do
       traceM "[evaluatorProto] recieving garbler input wires"
       inpA <- recv con :: IO [Wirelabel]
       traceM "[evaluatorProto] recieving key"
-      key <- recv con :: IO ByteString
+      key <- recv con :: IO AESKey128
       traceM "[evaluatorProto] performing OT"
       inpB <- otRecvWirelabels con inp
       traceM "[evaluatorProto] evaluating garbled circuit"
       let gg  = reconstruct tt hgs
-          k   = initAES (key :: ByteString)
-          out = eval gg k inpA inpB
+          out = eval gg key inpA inpB
       traceM ("[evaluatorProto] output =\n" ++ showOutput (prog_output gg) out)
       traceM "[evaluatorProto] sending output wires"
       send con out
