@@ -3,10 +3,6 @@
 module Crypto.GarbledCircuits ( 
     -- * Garbled Circuit datatypes
     Circuit (..) 
-    -- |A 'Circuit' is what we garble. It is the fundamental description
-    -- of the program that is executed in a garbled circuit.
-    --
-    -- Use the constructors in "Crypto.GarbledCircuits.Language" to create your own circuits.
   , Program (..)
   , Party (..)
   , Ref (..)

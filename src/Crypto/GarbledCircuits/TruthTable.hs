@@ -81,7 +81,12 @@ mkNot (Left (UNot x))   = Right x
 mkNot (Left (UConst b)) = Left (UConst (not b))
 
 create :: Operation -> Ref TruthTable -> Ref TruthTable -> TruthTable
-create op x y = emptyTT { tt_f = op,  tt_inpx = x, tt_inpy = y }
+create op x y = TT { tt_f    = op
+                   , tt_inpx = x
+                   , tt_inpy = y
+                   , tt_negx = False
+                   , tt_negy = False
+                   }
 
 foldConst :: Operation -> Bool -> Either NotBinary (Ref TruthTable)
           -> Either NotBinary (Ref TruthTable)

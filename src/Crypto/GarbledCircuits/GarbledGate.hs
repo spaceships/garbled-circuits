@@ -3,22 +3,6 @@
 module Crypto.GarbledCircuits.GarbledGate
   ( 
     GarbledGate (..)
-    -- |A 'GarbledGate' is either an input, a free xor, or a half gate.
-    --
-    -- Inputs are placeholders in 'GarbledGate'. At garbletime, two random 128-bit strings called
-    -- 'Wirelabel's are chosen for each input bit. One 'Wirelabel' corresponds to 'True' and the
-    -- other to 'False'. The 'Garbler' knows the truth-values for all 'Wirelabel's. The 'Evaluator'
-    -- learns the 'Wirelabel's for each of its inputs, but cannot guess what the other wirelabels
-    -- are since they are 128-bit random strings.
-    --
-    -- 'Xor' gates are free in the sense that they require no communication. The evaluator simply
-    -- xors its input wires to get the correct result. See
-    -- <https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.KS08> for details.
-    --
-    -- 'And' and 'Or' gates map to 'HalfGates'. Half gates contain the only information in a garbled
-    -- circuit that the 'Garbler' needs to send to the 'Evaluator'. Namely, two 'Wirelabels' per
-    -- gate.  Half gates are a very recent innovation. See ZRE15 <http://eprint.iacr.org/2014/756>
-    -- for details.
   , garble
   , halfGates
   , newWirelabels
@@ -97,7 +81,7 @@ encode tt aref bref
     b_pair <- maybeFlipWires (tt_negy tt) <$> pairsLookup bref
     r      <- getR
     let c0 = wlp_false a_pair `xorBytes` wlp_false b_pair
-    return (FreeXor aref bref, (c0, c0 `xorBytes` r))
+    return (FreeXor aref bref, (WirelabelPair c0 (c0 `xorBytes` r)))
 
   | halfGateCompatible tt = do -- the truth table is half-gate compatible
     let (fg, a, b) = getFg (tt_f tt)
@@ -116,7 +100,8 @@ encode tt aref bref
                                           `xorBytes` sel a a_pair
         we = hash k (sel pb b_pair) j'
         w  = wg `xorBytes` we
-    return (HalfGate aref bref g e, (w, w `xorBytes` r))
+        wlp = WirelabelPair { wlp_false = w, wlp_true = w `xorBytes` r }
+    return (HalfGate aref bref g e, wlp)
 
   | otherwise = err "encode" ("unsupported gate: " ++ show tt)
 
@@ -124,7 +109,7 @@ newWirelabels :: Garble WirelabelPair
 newWirelabels = do
     a <- randBlock
     r <- getR
-    return (a, a `xorBytes` r)
+    return WirelabelPair { wlp_false = a, wlp_true = a `xorBytes` r }
 
 halfGates :: Program GarbledGate -> [(Wirelabel, Wirelabel)]
 halfGates = map vals . filter halfGate . map snd . M.toList . prog_env
@@ -159,8 +144,10 @@ doStuff ((ref,tt):rest) hs =
 -- helpers
 
 maybeFlipWires :: Bool -> WirelabelPair -> WirelabelPair
-maybeFlipWires True  = swap
-maybeFlipWires False = id
+maybeFlipWires False wlp = wlp
+maybeFlipWires True  wlp = WirelabelPair { wlp_true  = wlp_false wlp
+                                         , wlp_false = wlp_true wlp 
+                                         }
 
 isXor :: TruthTable -> Bool
 isXor tt = tt_f tt == XOR

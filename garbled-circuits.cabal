@@ -2,11 +2,11 @@ name:                garbled-circuits
 version:             0.0.1.0
 synopsis:            Modern garbled circuit implementation.
 description:
-    Modern garbled circuit implementation.
-    .
     Describe a program as a circuit and create a two-party secure computation protocol.
     .
     Uses the latest optimizations to reduce communication including free-xor and half-gates.
+    .
+    Uses AES-based garbling for AESNI support.
 license:             Apache-2.0
 license-file:        LICENSE
 author:              Brent Carmer
