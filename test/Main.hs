@@ -73,9 +73,9 @@ prop_protoWorks prog = once $ monadicIO $ do
     chan <- run newChan
     port <- run $ generate (choose (1024,65536)) 
     run $ forkIO $ do
-      res <- listenAt port (garblerProto prog inpA . simpleSocket)
+      res <- listenAt port (garblerProto prog inpA . simpleConn)
       writeChan chan res
-    ggEval <- run $ connectTo "localhost" port (evaluatorProto prog inpB . simpleSocket)
+    ggEval <- run $ connectTo "localhost" port (evaluatorProto prog inpB . simpleConn)
     ggGarb <- run $ readChan chan
     assert (ggEval == pt && ggGarb == pt)
 

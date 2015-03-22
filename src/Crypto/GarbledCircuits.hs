@@ -5,8 +5,8 @@ module Crypto.GarbledCircuits
   , evaluatorProto
   , connectTo
   , listenAt
-  , simpleSocket
   , Connection (..)
+  , simpleConn
   , Party (..)
   , Ref (..)
   , Program (..)
@@ -38,9 +38,12 @@ traceM _ = return ()
 
 type Port = Int
 
-data Connection = Connection { send :: Serialize a => a -> IO ()
-                             , recv :: Serialize a => IO a
+data Connection = Connection { conn_send :: ByteString -> IO ()
+                             , conn_recv :: Int -> IO ByteString
                              }
+
+simpleConn :: Handle -> Connection
+simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
 
 garblerProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
 garblerProto prog inp con = do
@@ -96,6 +99,21 @@ otRecvWirelabels con inps = do
     send con inps
     recv con
 
+send :: Serialize a => Connection -> a -> IO ()
+send c x = do
+    let encoding = encode x; n = BS.length encoding
+    traceM ("[send] sending " ++ show n ++ " bytes")
+    conn_send c (encode n)
+    conn_send c encoding
+
+recv :: Serialize a => Connection -> IO a
+recv c = do
+    num <- conn_recv c 8
+    let n = either (err "recieve") id (decode num)
+    str <- conn_recv c n
+    traceM ("[recv] recieved " ++ show n ++ " bytes")
+    either (err "recv") return (decode str)
+
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do
     let port = toEnum port_
@@ -123,20 +141,3 @@ perform sock f = withSocketsDo $ do
 
 showOutput :: [Ref GarbledGate] -> [Wirelabel] -> String
 showOutput refs = init . unlines . zipWith (\r w -> "\t" ++ show r ++ " " ++ showWirelabel w) refs
-
-simpleSocket :: Handle -> Connection
-simpleSocket h = Connection { send = bsPut, recv = bsGet }
-  where
-    bsPut :: Serialize a => a -> IO ()
-    bsPut x = do
-      let encoding = encode x; n = BS.length encoding
-      traceM ("[send] sending " ++ show n ++ " bytes")
-      BS.hPut h (encode n)
-      BS.hPut h encoding
-    bsGet :: Serialize a => IO a
-    bsGet = do 
-      num <- BS.hGet h 8
-      let n = either (err "recieve") id (decode num)
-      str <- BS.hGet h n
-      traceM ("[recv] recieved " ++ show n ++ " bytes")
-      either (err "recv") return (decode str)

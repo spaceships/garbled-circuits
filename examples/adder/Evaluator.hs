@@ -14,5 +14,5 @@ main = do
     let server = args !! 0
         port   = read (args !! 1)
         input  = word2Bits $ (read (args !! 2) :: Word8)
-    result <- connectTo server port (evaluatorProto adder8Bit input . simpleSocket)
+    result <- connectTo server port (evaluatorProto adder8Bit input . simpleConn)
     print (bits2Word result :: Word8)
