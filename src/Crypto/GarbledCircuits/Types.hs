@@ -14,9 +14,9 @@ type Map = M.Map
 type Set = S.Set
 type ByteString = BS.ByteString
 
-newtype Ref a = Ref { unRef :: Word16 } deriving (Enum, Ord, Eq)
+newtype Ref a = Ref { unRef :: Int } deriving (Enum, Ord, Eq)
 
-data Party = PartyA | PartyB deriving (Enum, Ord, Eq, Show)
+data Party = Garbler | Evaluator deriving (Enum, Ord, Eq, Show)
 
 newtype InputId = InputId { getInputId :: Int } deriving (Enum, Ord, Eq)
 
@@ -39,10 +39,10 @@ data Operation = INPUT
 
 type Env c = Map (Ref c) c
 
-data Program c = Program { prog_input_a :: Set (Ref c)
-                         , prog_input_b :: Set (Ref c)
-                         , prog_output  :: [Ref c]
-                         , prog_env     :: Env c
+data Program c = Program { prog_input_gb :: Set (Ref c)
+                         , prog_input_ev :: Set (Ref c)
+                         , prog_output   :: [Ref c]
+                         , prog_env      :: Env c
                          } deriving (Show, Eq)
 
 data TruthTable = TTInp InputId Party
@@ -111,17 +111,17 @@ instance Show InputId where
 -- helpers
 
 prog_inputs :: Party -> Program c -> Set (Ref c)
-prog_inputs PartyA = prog_input_a
-prog_inputs PartyB = prog_input_b
+prog_inputs Garbler   = prog_input_gb
+prog_inputs Evaluator = prog_input_ev
 
 zeroWirelabel :: Wirelabel
 zeroWirelabel = BS.replicate 16 0
 
 emptyProg :: Program c
-emptyProg = Program { prog_input_a = S.empty
-                    , prog_input_b = S.empty
-                    , prog_output  = []
-                    , prog_env     = emptyEnv
+emptyProg = Program { prog_input_gb = S.empty
+                    , prog_input_ev = S.empty
+                    , prog_output   = []
+                    , prog_env      = emptyEnv
                     }
 
 emptyEnv :: Env c

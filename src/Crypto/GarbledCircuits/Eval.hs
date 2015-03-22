@@ -32,15 +32,15 @@ runEval :: AESKey128 -> ResultMap -> Eval a -> ResultMap
 runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 
 eval :: Program GarbledGate -> AESKey128 -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
-eval prog key inpA inpB =
+eval prog key inpGb inpEv =
 #ifdef DEBUG
-    trace (showGG prog inpA inpB) result
+    trace (showGG prog inpGb inpEv) result
 #else
     result
 #endif
   where
-    initialResults = M.fromList (zip (S.toList (prog_input_a prog)) inpA) `M.union`
-                     M.fromList (zip (S.toList (prog_input_b prog)) inpB)
+    initialResults = M.fromList (zip (S.toList (prog_input_gb prog)) inpGb) `M.union`
+                     M.fromList (zip (S.toList (prog_input_ev prog)) inpEv)
     resultMap = runEval key initialResults (eval' prog)
     result    = map (resultMap !!!) (prog_output prog)
 
@@ -84,11 +84,11 @@ insertResult ref result = modify $ second (M.insert ref result)
 nonInputRefs :: Program c -> [Ref c]
 nonInputRefs prog = filter (not.isInput) (M.keys (prog_env prog))
   where
-    isInput ref = S.member ref (S.union (prog_input_a prog) (prog_input_b prog))
+    isInput ref = S.member ref (S.union (prog_input_gb prog) (prog_input_ev prog))
 
 -- evaluate a garbled circuit locally
 evalLocal :: [Bool] -> [Bool] -> (Program GarbledGate, Context) -> [Bool]
-evalLocal inpA inpB (prog, ctx) =
+evalLocal inpGb inpEv (prog, ctx) =
 #ifdef DEBUG
     trace (showPairs ctx) $
     trace ("[evalLocal] result = " ++ show result)
@@ -97,8 +97,8 @@ evalLocal inpA inpB (prog, ctx) =
   where
     result = map (ungarble ctx) outs
     outs   = eval prog (ctx_key ctx) aWires bWires
-    aWires = inputWires PartyA prog ctx inpA
-    bWires = inputWires PartyB prog ctx inpB
+    aWires = inputWires Garbler   prog ctx inpGb
+    bWires = inputWires Evaluator prog ctx inpEv
 
 typeOf :: GarbledGate -> String
 typeOf (GarbledInput _ _) = "Input"
@@ -106,7 +106,7 @@ typeOf (FreeXor _ _)      = "FreeXor"
 typeOf (HalfGate {})      = "HalfGate"
 
 showGG :: Program GarbledGate -> [Wirelabel] -> [Wirelabel] -> String
-showGG prog inpA inpB = init $ unlines $ map showGate (M.toList (prog_env prog))
+showGG prog inpGb inpEv = init $ unlines $ map showGate (M.toList (prog_env prog))
   where
     showGate (ref, gg) = show ref ++ ": " ++ case gg of
         GarbledInput i p -> show i ++ " " ++ show p ++ " " ++ outp ref ++ partyInput p i
@@ -117,8 +117,8 @@ showGG prog inpA inpB = init $ unlines $ map showGate (M.toList (prog_env prog))
     outp r = case r `elemIndex` prog_output prog
       of Just i -> "out" ++ show i; _ -> ""
 
-    partyInput PartyA (InputId i) | length inpA > i = showWirelabel (inpA !! i)
-    partyInput PartyB (InputId i) | length inpB > i = showWirelabel (inpB !! i)
+    partyInput Garbler   (InputId i) | length inpGb > i = showWirelabel (inpGb !! i)
+    partyInput Evaluator (InputId i) | length inpEv > i = showWirelabel (inpEv !! i)
     partyInput _ _ = ""
 
 showPairs :: Context -> String

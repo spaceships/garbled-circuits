@@ -1,17 +1,23 @@
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}
 
-module Crypto.GarbledCircuits
-  ( garblerProto
-  , evaluatorProto
-  , connectTo
-  , listenAt
-  , Connection (..)
-  , simpleConn
+module Crypto.GarbledCircuits ( 
+    -- * Garbled Circuit datatypes
+    Circuit (..) 
+    -- |A 'Circuit' is what we garble. It is the fundamental description
+    -- of the program that is executed in a garbled circuit.
+    --
+    -- Use the constructors in "Crypto.GarbledCircuits.Language" to create your own circuits.
+  , Program (..)
   , Party (..)
   , Ref (..)
-  , Program (..)
-  , Circuit (..)
-  , GarbledGate (..)
+  -- * The garbled circuit protocols
+  , Connection (..)
+  , garblerProto
+  , evaluatorProto
+  -- ** Simple socket connection
+  , connectTo
+  , listenAt
+  , simpleConn
   )
 where
 
@@ -49,8 +55,8 @@ garblerProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
 garblerProto prog inp con = do
       (gg, ctx) <- garble prog
       traceM "[garblerProto] circuit garbled"
-      let myWires    = inputWires PartyA gg ctx inp
-          theirPairs = inputPairs PartyB gg ctx
+      let myWires    = inputWires Garbler   gg ctx inp
+          theirPairs = inputPairs Evaluator gg ctx
       traceM "[garblerProto] sending circuit"
       send con (halfGates gg)
       traceM "[garblerProto] sending my input wires"

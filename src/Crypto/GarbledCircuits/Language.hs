@@ -46,8 +46,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 data CircuitSt = CircuitSt { st_nextRef     :: Ref Circuit
-                           , st_inputs_a    :: S.Set (Ref Circuit)
-                           , st_inputs_b    :: S.Set (Ref Circuit)
+                           , st_input_gb   :: S.Set (Ref Circuit)
+                           , st_input_ev   :: S.Set (Ref Circuit)
                            , st_nextInputId :: InputId
                            , st_deref_env   :: Map (Ref Circuit) Circuit
                            , st_dedup_env   :: Map Circuit (Ref Circuit)
@@ -57,14 +57,14 @@ newtype Builder a = Builder (State CircuitSt a)
                   deriving (Functor, Applicative, Monad, MonadState CircuitSt)
 
 -- |Evaluate a program in plaintext. Useful for testing and debugging.
-evalCircuit :: [Bool] -- ^ PartyA's input
-            -> [Bool] -- ^ PartyB's input
+evalCircuit :: [Bool] -- ^ Garbler's input
+            -> [Bool] -- ^ Evaluator's input
             -> Program Circuit  -- ^ The program itself
             -> [Bool] -- ^ The computed output
-evalCircuit inpA inpB prog = evalProg construct prog
+evalCircuit inpGb inpEv prog = evalProg construct prog
   where
-    inputs PartyA = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
-    inputs PartyB = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
+    inputs Garbler   = M.fromList (zip (S.toList (prog_input_gb prog)) inpGb)
+    inputs Evaluator = M.fromList (zip (S.toList (prog_input_ev prog)) inpEv)
 
     construct :: Ref Circuit -> Circuit -> [Bool] -> Bool
     construct ref (Input i p) [] = case M.lookup ref (inputs p) of
@@ -81,17 +81,17 @@ evalCircuit inpA inpB prog = evalProg construct prog
 --
 -- Note: programs with toplevel 'Not' or 'Const' are not garbleable.
 buildCircuit :: Builder [Ref Circuit] -> Program Circuit
-buildCircuit (Builder c) = Program { prog_input_a = st_inputs_a st
-                         , prog_input_b = st_inputs_b st
-                         , prog_output  = reverse outs
-                         , prog_env     = st_deref_env st
-                         }
+buildCircuit (Builder c) = Program { prog_input_gb = st_input_gb st
+                                   , prog_input_ev = st_input_ev st
+                                   , prog_output  = reverse outs
+                                   , prog_env     = st_deref_env st
+                                   }
   where
     (outs, st) = runState c emptySt
     emptySt    = CircuitSt { st_nextRef     = Ref 0
                            , st_nextInputId = InputId 0
-                           , st_inputs_a    = S.empty
-                           , st_inputs_b    = S.empty
+                           , st_input_gb    = S.empty
+                           , st_input_ev    = S.empty
                            , st_deref_env   = emptyEnv
                            , st_dedup_env   = M.empty
                            }
@@ -134,13 +134,13 @@ intern circ = do
 --------------------------------------------------------------------------------
 -- smart constructors for the Circuit language
 
--- |The 'input' function creates an input bit for 'PartyA' or 'PartyB'.
+-- |The 'input' function creates an input bit for the 'Garbler' or the 'Evaluator'.
 input :: Party -> Builder (Ref Circuit)
 input p = do i   <- nextInputId
              ref <- intern (Input i p)
              modify $ \st -> case p of
-               PartyA -> st { st_inputs_a = S.insert ref (st_inputs_a st) }
-               PartyB -> st { st_inputs_b = S.insert ref (st_inputs_b st) }
+               Garbler   -> st { st_input_gb = S.insert ref (st_input_gb st) }
+               Evaluator -> st { st_input_ev = S.insert ref (st_input_ev st) }
              return ref
 
 -- |Bitwise xor. This gate will be garbled as a 'FreeXor'.

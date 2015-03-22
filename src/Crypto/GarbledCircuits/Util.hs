@@ -133,8 +133,8 @@ inputp :: (Ord c, MonadState (Program c) m) => Party -> c -> m (Ref c)
 inputp party inp = do
   ref <- internp inp
   modify $ \p -> case party of
-    PartyA -> p { prog_input_a = S.insert ref (prog_input_a p) }
-    PartyB -> p { prog_input_b = S.insert ref (prog_input_b p) }
+    Garbler   -> p { prog_input_gb = S.insert ref (prog_input_gb p) }
+    Evaluator -> p { prog_input_ev = S.insert ref (prog_input_ev p) }
   return ref
 
 writep :: (Ord c, MonadState (Program c) m) => Ref c -> c -> m ()

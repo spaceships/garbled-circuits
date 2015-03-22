@@ -1,7 +1,25 @@
 {-# LANGUAGE LambdaCase, NamedFieldPuns #-}
 
 module Crypto.GarbledCircuits.GarbledGate
-  ( garble
+  ( 
+    GarbledGate (..)
+    -- |A 'GarbledGate' is either an input, a free xor, or a half gate.
+    --
+    -- Inputs are placeholders in 'GarbledGate'. At garbletime, two random 128-bit strings called
+    -- 'Wirelabel's are chosen for each input bit. One 'Wirelabel' corresponds to 'True' and the
+    -- other to 'False'. The 'Garbler' knows the truth-values for all 'Wirelabel's. The 'Evaluator'
+    -- learns the 'Wirelabel's for each of its inputs, but cannot guess what the other wirelabels
+    -- are since they are 128-bit random strings.
+    --
+    -- 'Xor' gates are free in the sense that they require no communication. The evaluator simply
+    -- xors its input wires to get the correct result. See
+    -- <https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.KS08> for details.
+    --
+    -- 'And' and 'Or' gates map to 'HalfGates'. Half gates contain the only information in a garbled
+    -- circuit that the 'Garbler' needs to send to the 'Evaluator'. Namely, two 'Wirelabels' per
+    -- gate.  Half gates are a very recent innovation. See ZRE15 <http://eprint.iacr.org/2014/756>
+    -- for details.
+  , garble
   , halfGates
   , newWirelabels
   , reconstruct
@@ -118,10 +136,10 @@ halfGates = map vals . filter halfGate . map snd . M.toList . prog_env
 
 -- create a Program GarbledGate given a TruthTable and a list of HalfGates
 reconstruct :: Program TruthTable -> [(Wirelabel, Wirelabel)] -> Program GarbledGate
-reconstruct prog hgs = Program { prog_input_a = S.map convertRef (prog_input_a prog)
-                               , prog_input_b = S.map convertRef (prog_input_b prog)
-                               , prog_output  = map convertRef (prog_output prog)
-                               , prog_env     = M.fromList (doStuff (M.toList (prog_env prog)) hgs)
+reconstruct prog hgs = Program { prog_input_gb = S.map convertRef (prog_input_gb prog)
+                               , prog_input_ev = S.map convertRef (prog_input_ev prog)
+                               , prog_output   = map convertRef (prog_output prog)
+                               , prog_env      = M.fromList (doStuff (M.toList (prog_env prog)) hgs)
                                }
 
 doStuff :: [(Ref TruthTable, TruthTable)] 

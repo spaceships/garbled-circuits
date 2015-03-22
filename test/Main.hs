@@ -46,8 +46,8 @@ prop_lsbOfR = monadicIO (lsb <$> testGarble genR)
 prop_arbitraryCircuitCorrect :: Program Circuit -> Property
 prop_arbitraryCircuitCorrect circ = monadicIO $ do
     (_,gg,ctx) <- testCircuit circ
-    inpA <- pick $ vector (inputSize PartyA circ)
-    inpB <- pick $ vector (inputSize PartyB circ)
+    inpA <- pick $ vector (inputSize Garbler   circ)
+    inpB <- pick $ vector (inputSize Evaluator circ)
     let pt  = L.evalCircuit  inpA inpB circ
         res = evalLocal inpA inpB (gg,ctx)
     assert (res == pt)
@@ -67,8 +67,8 @@ prop_serializeCorrect circ = monadicIO $ do
 
 prop_protoWorks :: Program Circuit -> Property
 prop_protoWorks prog = once $ monadicIO $ do
-    inpA <- pick $ vector (inputSize PartyA prog)
-    inpB <- pick $ vector (inputSize PartyB prog)
+    inpA <- pick $ vector (inputSize Garbler   prog)
+    inpB <- pick $ vector (inputSize Evaluator prog)
     let pt = L.evalCircuit inpA inpB prog
     chan <- run newChan
     port <- run $ generate (choose (1024,65536)) 
@@ -116,7 +116,7 @@ arbCircuit = do
 
 mkCircuit :: [Operation] -> Gen (L.Builder (Ref Circuit), [Operation])
 mkCircuit (INPUT:ops) = do
-    p <- elements [PartyA,PartyB]
+    p <- elements [Garbler,Evaluator]
     return (L.input p, ops)
 
 mkCircuit (CONST:ops) = do
@@ -134,7 +134,7 @@ mkCircuit (op:ops) = do
     return (c, ops'')
 
 mkCircuit [] = do
-    p <- elements [PartyA,PartyB]
+    p <- elements [Garbler,Evaluator]
     return (L.input p, [])
 
 op2circ :: Operation -> Ref Circuit -> Ref Circuit -> L.Builder (Ref Circuit)

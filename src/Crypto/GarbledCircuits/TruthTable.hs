@@ -97,10 +97,10 @@ foldConst _ _ _ = err "foldConst" "unrecognized operation"
 -- truth table evaluator
 
 evalTT :: [Bool] -> [Bool] -> Program TruthTable -> [Bool]
-evalTT inpA inpB prog = evalProg construct prog
+evalTT inpGb inpEv prog = evalProg construct prog
   where
-    inputs PartyA = M.fromList (zip (S.toList (prog_input_a prog)) inpA)
-    inputs PartyB = M.fromList (zip (S.toList (prog_input_b prog)) inpB)
+    inputs Garbler   = M.fromList (zip (S.toList (prog_input_gb prog)) inpGb)
+    inputs Evaluator = M.fromList (zip (S.toList (prog_input_ev prog)) inpEv)
 
     construct :: Ref TruthTable -> TruthTable -> [Bool] -> Bool
     construct ref (TTInp i p) [] = case M.lookup ref (inputs p) of
