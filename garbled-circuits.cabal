@@ -1,52 +1,63 @@
 name:                garbled-circuits
-version:             0.1.0.0
--- synopsis:
--- description:
+version:             0.0.1.0
+synopsis:            Modern garbled circuit implementation.
+description:
+    Modern garbled circuit implementation.
+    .
+    Describe a program as a circuit and create a two-party secure computation protocol.
+    .
+    Uses the latest optimizations to reduce communication including free-xor and half-gates.
 license:             Apache-2.0
 license-file:        LICENSE
 author:              Brent Carmer
+homepage:            https://github.com/spaceships/garbled-circuits
+bug-reports:         https://github.com/spaceships/garbled-circuits/issues
 maintainer:          bcarmer@gmail.com
 copyright:           2015
-category:            Crypto
+category:            Cryptography
 build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:       >=1.12
 
 library
-  default-language:    Haskell2010
-  hs-source-dirs:      src
-  exposed-modules:     Crypto.GarbledCircuits
-                     , Crypto.GarbledCircuits.Types
-                     , Crypto.GarbledCircuits.Util
-                     , Crypto.GarbledCircuits.Language
-                     , Crypto.GarbledCircuits.TruthTable
-                     , Crypto.GarbledCircuits.Encryption
-                     , Crypto.GarbledCircuits.GarbledGate
-                     , Crypto.GarbledCircuits.Eval
-  build-depends:       base >=4.7 && <4.8
-                     , bytestring
-                     , cereal
-                     , cipher-aes128
-                     , containers
-                     , entropy
-                     , mtl
-                     , network
+  default-language:     Haskell2010
+  hs-source-dirs:       src
+  exposed-modules:      Crypto.GarbledCircuits
+                      , Crypto.GarbledCircuits.Types
+                      , Crypto.GarbledCircuits.Util
+                      , Crypto.GarbledCircuits.Language
+                      , Crypto.GarbledCircuits.TruthTable
+                      , Crypto.GarbledCircuits.Encryption
+                      , Crypto.GarbledCircuits.GarbledGate
+                      , Crypto.GarbledCircuits.Eval
+  build-depends:        base >=4.7 && <4.8
+                      , bytestring
+                      , cereal
+                      , cipher-aes128
+                      , containers
+                      , entropy
+                      , mtl
+                      , network
 
-  ghc-options:        -fwarn-incomplete-patterns
-  default-language:    Haskell2010
-  default-extensions:  CPP
-  cpp-options:         -DDEBUG
+  ghc-options:          -fwarn-incomplete-patterns
+  default-language:     Haskell2010
+  default-extensions:   CPP
+  cpp-options:          -DDEBUG
+
+source-repository head
+  type:                 git
+  location:             https://github.com/spaceships/garbled-circuits
 
 test-suite test-garbled-circuits
-  default-language:    Haskell2010
-  type:                exitcode-stdio-1.0
-  main-is:             Main.hs
-  hs-source-dirs:      test
-                     , examples/adder
-  build-depends:       base >=4.7 && <4.8
-                     , QuickCheck
-                     , cereal
-                     , containers
-                     , entropy
-                     , garbled-circuits
-                     , test-framework
-                     , test-framework-quickcheck2
+  default-language:     Haskell2010
+  type:                 exitcode-stdio-1.0
+  main-is:              Main.hs
+  hs-source-dirs:       test
+                      , examples/adder
+  build-depends:        base >=4.7 && <4.8
+                      , QuickCheck
+                      , cereal
+                      , containers
+                      , entropy
+                      , garbled-circuits
+                      , test-framework
+                      , test-framework-quickcheck2
