@@ -1,7 +1,7 @@
 module Main where
 
-import Test.GarbledCircuits
-import Test.ObliviousTransfer
+import TestGarbledCircuits
+import TestObliviousTransfer
 
 import Data.Monoid
 import Test.Framework
