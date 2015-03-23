@@ -22,11 +22,13 @@ import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
+import Crypto.ObliviousTransfer
 
-import           Crypto.Cipher.AES128
 import           Control.Monad
+import           Crypto.Cipher.AES128 (AESKey128)
+import           Data.Functor
 import qualified Data.ByteString.Char8 as BS
-import           Data.Serialize
+import           Data.Serialize (decode, encode, Serialize)
 import           Network.Socket hiding (send, recv)
 import           Network.BSD
 import           System.IO
@@ -48,58 +50,57 @@ simpleConn :: Handle -> Connection
 simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
 
 garblerProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
-garblerProto prog inp con = do
+garblerProto prog inp conn = do
       (gg, ctx) <- garble prog
       traceM "[garblerProto] circuit garbled"
       let myWires    = inputWires Garbler   gg ctx inp
-          theirPairs = inputPairs Evaluator gg ctx
+          theirPairs = map asTuple $ inputPairs Evaluator gg ctx
       traceM "[garblerProto] sending circuit"
-      send con (halfGates gg)
+      send conn (halfGates gg)
       traceM "[garblerProto] sending my input wires"
-      send con myWires
+      send conn myWires
       traceM "[garblerProto] sending key"
-      send con (ctx_key ctx)
+      send conn (ctx_key ctx)
       traceM "[garblerProto] performing OT"
-      otSendWirelabels con theirPairs
+      otSend conn theirPairs
       traceM "[garblerProto] recieving output"
-      wires <- recv con
+      wires <- recv conn
       let result = map (ungarble ctx) wires
       traceM "[garblerProto] sending ungarbled output"
-      send con result
+      send conn result
       return result
 
 evaluatorProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
-evaluatorProto prog inp con = do
+evaluatorProto prog inp conn = do
       let tt = circ2tt prog
       traceM "[evaluatorProto] recieving circuit"
-      hgs <- recv con :: IO [(Wirelabel,Wirelabel)]
+      hgs <- recv conn :: IO [(Wirelabel,Wirelabel)]
       traceM "[evaluatorProto] recieving garbler input wires"
-      inpA <- recv con :: IO [Wirelabel]
+      inpGb <- recv conn :: IO [Wirelabel]
       traceM "[evaluatorProto] recieving key"
-      key <- recv con :: IO AESKey128
+      key <- recv conn :: IO AESKey128
       traceM "[evaluatorProto] performing OT"
-      inpB <- otRecvWirelabels con inp
+      inpEv <- otRecv conn inp
       traceM "[evaluatorProto] evaluating garbled circuit"
       let gg  = reconstruct tt hgs
-          out = eval gg key inpA inpB
+          out = eval gg key inpGb inpEv
       traceM ("[evaluatorProto] output =\n" ++ showOutput (prog_output gg) out)
       traceM "[evaluatorProto] sending output wires"
-      send con out
+      send conn out
       traceM "[evaluatorProto] recieving ungarbled output"
-      recv con
+      recv conn
 
-otSendWirelabels :: Connection -> [WirelabelPair] -> IO ()
-otSendWirelabels con wlps = do
-    traceM "[otSendWirelabels] WARNING: not actually OT"
-    inps <- recv con
-    let wires = zipWith sel inps wlps
-    send con wires
+--------------------------------------------------------------------------------
+-- ot
 
-otRecvWirelabels :: Connection -> [Bool] -> IO [Wirelabel]
-otRecvWirelabels con inps = do
-    traceM "[otRecvWirelabels] WARNING: not actually OT"
-    send con inps
-    recv con
+otSend :: Connection -> [(ByteString, ByteString)] -> IO ()
+otSend conn elements = undefined
+
+otRecv :: Connection -> [Bool] -> IO [ByteString]
+otRecv onn choices = undefined
+
+--------------------------------------------------------------------------------
+-- network
 
 send :: Serialize a => Connection -> a -> IO ()
 send c x = do
@@ -143,3 +144,6 @@ perform sock f = withSocketsDo $ do
 
 showOutput :: [Ref GarbledGate] -> [Wirelabel] -> String
 showOutput refs = init . unlines . zipWith (\r w -> "\t" ++ show r ++ " " ++ showWirelabel w) refs
+
+asTuple :: WirelabelPair -> (Wirelabel, Wirelabel)
+asTuple p = (wlp_false p, wlp_true p)
