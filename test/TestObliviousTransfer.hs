@@ -22,7 +22,7 @@ obliviousTransferTests = [
 
 prop_ddhCorrect :: Property
 prop_ddhCorrect = once $ monadicIO $ do
-    m <- run $ generate (choose (0,maxBound)) :: PropertyM IO Int
+    m <- pick $ choose (0,maxBound) :: PropertyM IO Int
     res <- run $ runOT 1024 $ do 
       (pk, sk) <- ddhKeyGen
       ct <- ddhEnc pk (fromIntegral m)
@@ -30,28 +30,25 @@ prop_ddhCorrect = once $ monadicIO $ do
     assert (res == fromIntegral m)
 
 prop_messyModeCorrect :: Property
-prop_messyModeCorrect = monadicIO $ do
-    m <- run $ generate (choose (0,maxBound)) :: PropertyM IO Int
-    n <- run $ generate (choose (0,maxBound)) :: PropertyM IO Int
-    b <- run $ generate arbitrary             :: PropertyM IO Bool
-    res <- run $ runOT 1024 $ do
-        (crs, t) <- setupMessy
-        (pk, sk) <- keyGen crs b
-        (x,y)    <- enc crs pk (fromIntegral m, fromIntegral n)
-        if b then dec sk y else dec sk x
-    assert (fromIntegral res == sel b (m,n))
+prop_messyModeCorrect = testMode setupMessy
 
 prop_decModeCorrect :: Property
-prop_decModeCorrect = monadicIO $ do
-    m <- run $ generate (choose (0,maxBound)) :: PropertyM IO Int
-    n <- run $ generate (choose (0,maxBound)) :: PropertyM IO Int
-    b <- run $ generate arbitrary             :: PropertyM IO Bool
-    res <- run $ runOT 1024 $ do
-        (crs, t) <- setupDec
+prop_decModeCorrect = testMode setupDec
+
+testMode :: (OT (CRS, t)) -> Property
+testMode setup = once $ monadicIO $ do
+    m <- pick $ choose (0,maxBound) :: PropertyM IO Int
+    n <- pick $ choose (0,maxBound) :: PropertyM IO Int
+    b <- pick arbitrary             :: PropertyM IO Bool
+    (m',n') <- run $ runOT 1024 $ do
+        (crs, t) <- setup
         (pk, sk) <- keyGen crs b
         (x,y)    <- enc crs pk (fromIntegral m, fromIntegral n)
-        if b then dec sk y else dec sk x
-    assert (fromIntegral res == sel b (m,n))
+        m' <- dec sk x
+        n' <- dec sk y
+        return (fromIntegral m', fromIntegral n')
+    assert (sel b (m',n') == sel b (m,n))             -- can decrypt the chosen ciphertext
+    assert (sel (not b) (m',n') /= sel (not b) (m,n)) -- and only the chosen ciphertext
 
 sel :: Bool -> (a,a) -> a
 sel False (x,y) = x

@@ -67,7 +67,7 @@ prop_protoWorks prog = once $ monadicIO $ do
     inpB <- pick $ vector (inputSize Evaluator prog)
     let pt = L.evalCircuit inpA inpB prog
     chan <- run newChan
-    port <- run $ generate (choose (1024,65536)) 
+    port <- pick $ choose (1024,65536) 
     run $ forkIO $ do
       res <- listenAt port (garblerProto prog inpA . simpleConn)
       writeChan chan res
