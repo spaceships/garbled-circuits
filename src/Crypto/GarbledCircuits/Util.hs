@@ -24,6 +24,8 @@ module Crypto.GarbledCircuits.Util
   , mask
   , err
   , (!!!)
+  , trace
+  , traceM
   )
 where
 
@@ -39,6 +41,16 @@ import qualified Data.Set as S
 import           Data.Tuple
 import           Data.Word
 import           Numeric (showHex)
+
+#ifdef DEBUG
+import Debug.Trace
+#else
+trace :: String -> a -> a
+trace = flip const
+
+traceM :: Monad m => String -> m ()
+traceM _ = return ()
+#endif
 
 --------------------------------------------------------------------------------
 -- general helper functions

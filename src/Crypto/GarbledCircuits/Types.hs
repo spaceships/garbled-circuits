@@ -8,7 +8,6 @@ import           Crypto.Cipher.AES128
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.Word
 
 type Map = M.Map
 type Set = S.Set
@@ -49,12 +48,12 @@ data Operation = INPUT
 
 type Env c = Map (Ref c) c
 
--- |'Program' keeps track of inputs, outputs, and references. 
+-- |'Program' keeps track of inputs, outputs, and references.
 --
 -- It is polymorphic over 'Circuit', 'TruthTable', and 'GarbledGate'.
-data Program c = Program { 
+data Program c = Program {
                            -- | Input bits belonging to the 'Garbler'
-                           prog_input_gb :: Set (Ref c) 
+                           prog_input_gb :: Set (Ref c)
                            -- | Input bits belonging to the 'Evaluator'
                          , prog_input_ev :: Set (Ref c)
                            -- | The output bits, in order.
@@ -68,7 +67,7 @@ data Program c = Program {
 -- ('Xor', 'And', 'Or') gates above them. This is necessary because only binary
 -- gates are garbleable in our scheme.
 data TruthTable = TTInp InputId Party
-                | TT { 
+                | TT {
                        -- | The type of this gate.
                        tt_f    :: Operation
                        -- | A ref to the left input gate.
@@ -114,13 +113,13 @@ data GarbledGate = GarbledInput InputId Party
                  deriving (Show, Eq, Ord)
 
 -- |A monad for creating garbled circuits.
-type Garble = StateT (Program GarbledGate) 
-                (ReaderT (Program TruthTable) 
+type Garble = StateT (Program GarbledGate)
+                (ReaderT (Program TruthTable)
                   (StateT Context
                     IO))
 
 -- |'Context' contains state and proprietary information for garbling.
-data Context = Context { 
+data Context = Context {
                          -- | The output wires for each gate.
                          ctx_pairs :: Map (Ref GarbledGate) WirelabelPair
                          -- | The truth value of each wire.
@@ -132,6 +131,15 @@ data Context = Context {
                          -- | The @ctr@ value. Used in half-gates.
                        , ctx_ctr   :: Int
                        }
+
+--------------------------------------------------------------------------------
+-- network
+
+type Port = Int
+
+data Connection = Connection { conn_send :: ByteString -> IO ()
+                             , conn_recv :: Int -> IO ByteString
+                             }
 
 --------------------------------------------------------------------------------
 -- instances

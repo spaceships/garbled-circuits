@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}
 
-module Crypto.GarbledCircuits ( 
+module Crypto.GarbledCircuits (
     -- * Garbled Circuit datatypes
-    Circuit (..) 
+    Circuit (..)
   , Program (..)
   , Party (..)
   , Ref (..)
@@ -22,7 +22,8 @@ import Crypto.GarbledCircuits.TruthTable
 import Crypto.GarbledCircuits.Eval
 import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util
-import Crypto.ObliviousTransfer
+import Crypto.GarbledCircuits.Network
+import Crypto.GarbledCircuits.ObliviousTransfer
 
 import           Control.Monad
 import           Crypto.Cipher.AES128 (AESKey128)
@@ -32,22 +33,6 @@ import           Data.Serialize (decode, encode, Serialize)
 import           Network.Socket hiding (send, recv)
 import           Network.BSD
 import           System.IO
-
-#ifdef DEBUG
-import Debug.Trace
-#else
-traceM :: Monad m => String -> m ()
-traceM _ = return ()
-#endif
-
-type Port = Int
-
-data Connection = Connection { conn_send :: ByteString -> IO ()
-                             , conn_recv :: Int -> IO ByteString
-                             }
-
-simpleConn :: Handle -> Connection
-simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
 
 garblerProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
 garblerProto prog inp conn = do
@@ -92,55 +77,6 @@ evaluatorProto prog inp conn = do
 
 --------------------------------------------------------------------------------
 -- ot
-
-otSend :: Connection -> [(ByteString, ByteString)] -> IO ()
-otSend conn elements = undefined
-
-otRecv :: Connection -> [Bool] -> IO [ByteString]
-otRecv onn choices = undefined
-
---------------------------------------------------------------------------------
--- network
-
-send :: Serialize a => Connection -> a -> IO ()
-send c x = do
-    let encoding = encode x; n = BS.length encoding
-    traceM ("[send] sending " ++ show n ++ " bytes")
-    conn_send c (encode n)
-    conn_send c encoding
-
-recv :: Serialize a => Connection -> IO a
-recv c = do
-    num <- conn_recv c 8
-    let n = either (err "recieve") id (decode num)
-    str <- conn_recv c n
-    traceM ("[recv] recieved " ++ show n ++ " bytes")
-    either (err "recv") return (decode str)
-
-connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
-connectTo host port_ f = withSocketsDo $ do
-    let port = toEnum port_
-    sock <- socket AF_INET Stream 0
-    addrs <- liftM hostAddresses $ getHostByName host
-    when (null addrs) $ err "connectTo" ("no such host: " ++ host)
-    connect sock $ SockAddrInet port (head addrs)
-    perform sock f
-
-listenAt :: Port -> (Handle -> IO a) -> IO a
-listenAt port_ f = withSocketsDo $ do
-    let port = toEnum port_
-    lsock <- socket AF_INET Stream 0
-    bindSocket lsock (SockAddrInet port iNADDR_ANY)
-    listen lsock sOMAXCONN
-    (sock,SockAddrInet _ _) <- accept lsock
-    perform sock f
-
-perform :: Socket -> (Handle -> IO a) -> IO a
-perform sock f = withSocketsDo $ do
-    handle <- socketToHandle sock ReadWriteMode
-    result <- f handle
-    hClose handle
-    return result
 
 showOutput :: [Ref GarbledGate] -> [Wirelabel] -> String
 showOutput refs = init . unlines . zipWith (\r w -> "\t" ++ show r ++ " " ++ showWirelabel w) refs

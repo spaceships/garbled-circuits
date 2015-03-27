@@ -18,10 +18,6 @@ import qualified Data.Map as M
 import           Data.Maybe
 import qualified Data.Set as S
 
-#ifdef DEBUG
-import Debug.Trace
-#endif
-
 --------------------------------------------------------------------------------
 -- garbled evaluator
 
@@ -32,12 +28,7 @@ runEval :: AESKey128 -> ResultMap -> Eval a -> ResultMap
 runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 
 eval :: Program GarbledGate -> AESKey128 -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
-eval prog key inpGb inpEv =
-#ifdef DEBUG
-    trace (showGG prog inpGb inpEv) result
-#else
-    result
-#endif
+eval prog key inpGb inpEv = trace (showGG prog inpGb inpEv) result
   where
     initialResults = M.fromList (zip (S.toList (prog_input_gb prog)) inpGb) `M.union`
                      M.fromList (zip (S.toList (prog_input_ev prog)) inpEv)
@@ -52,10 +43,8 @@ eval' prog = mapM_ evalRef (nonInputRefs prog)
       kids   <- mapM getResult (children c)
       result <- construct c kids
       insertResult ref result
-#ifdef DEBUG
       traceM ("[eval] " ++ show ref ++ show (unRef `fmap` children c)
           ++ " " ++ typeOf c ++ " result = " ++ showWirelabel result)
-#endif
 
 construct :: GarbledGate -> [Wirelabel] -> Eval Wirelabel
 construct (FreeXor  _ _    ) [a,b] =
@@ -89,11 +78,7 @@ nonInputRefs prog = filter (not.isInput) (M.keys (prog_env prog))
 -- evaluate a garbled circuit locally
 evalLocal :: [Bool] -> [Bool] -> (Program GarbledGate, Context) -> [Bool]
 evalLocal inpGb inpEv (prog, ctx) =
-#ifdef DEBUG
-    trace (showPairs ctx) $
-    trace ("[evalLocal] result = " ++ show result)
-#endif
-    result
+    trace (showPairs ctx ++ "[evalLocal] result = " ++ show result) result
   where
     result = map (ungarble ctx) outs
     outs   = eval prog (ctx_key ctx) aWires bWires

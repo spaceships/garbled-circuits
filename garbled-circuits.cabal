@@ -29,7 +29,8 @@ library
                       , Crypto.GarbledCircuits.Encryption
                       , Crypto.GarbledCircuits.GarbledGate
                       , Crypto.GarbledCircuits.Eval
-                      , Crypto.ObliviousTransfer
+                      , Crypto.GarbledCircuits.ObliviousTransfer
+                      , Crypto.GarbledCircuits.Network
   build-depends:        base >=4.7 && <4.8
                       , bytestring
                       , cereal
