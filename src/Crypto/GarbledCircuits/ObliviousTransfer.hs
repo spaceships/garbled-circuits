@@ -49,18 +49,28 @@ runOT n m = do
 
 k = 1 -- number of OTs
 
+xorBits :: [Bool] -> [Bool] -> [Bool]
+xorBits xs ys | length xs /= length ys = err "xorBits" "unequal length arguments"
+              | otherwise = zipWith xor xs ys
+
 otSend :: Connection -> AESKey128 -> [(ByteString, ByteString)] -> IO ()
 otSend conn key elems = do
     let n = length elems
     g0 <- newGen
     let (s, g1) = randBits k g0
+    traceM ("[otSend] s=" ++ show s)
     q <- forM s $ \b -> do
-      j <- recvOT conn b
-      return j
-    let rows = fmap (pad 16 . bits2Bytes) (tr $ fmap (bytes2Bits n) q)
+      qi <- recvOT conn b
+      traceM ("[otSend] qi=" ++ show qi)
+      return $ bytes2Bits n qi
+    traceM ("[otSend] q=" ++ show q)
+    let rows = tr q
     forM_ (zip3 [0..] rows elems) $ \(i, row, (x,y)) -> do
-      let ctx = x `xorBytes` hash key row i
-      let cty = y `xorBytes` hash key (row `xorBytes` pad 16 (bits2Bytes s)) i
+      traceM ("[otSend] row=" ++ show row)
+      let r  = pad 16 (bits2Bytes row)
+          rs = pad 16 (bits2Bytes (xorBits row s))
+      let ctx = x `xorBytes` hash key r i
+      let cty = y `xorBytes` hash key rs i
       send2 conn (ctx, cty)
 
 otRecv :: Connection -> AESKey128 -> [Bool] -> IO [ByteString]
@@ -69,13 +79,15 @@ otRecv conn key choices = do
         r = bits2Bytes choices
     g0 <- newGen
     let (t, g1) = randBitMatrix (n, k) g0
+    traceM ("[otRecv] t=" ++ show t)
     forM (tr t) $ \col -> do
       let j = bits2Bytes col
       sendOT conn (pad 16 j, pad 16 j `xorBytes` pad 16 r)
     forM (zip3 [0..] choices t) $ \(i, b, row) -> do
       (x,y) <- recv2 conn
+      traceM ("[otRecv] row=" ++ show row)
       let c = if b then y else x
-      let m = pad 16 c `xorBytes` hash key (pad 16 $ bits2Bytes row) i
+      let m = c `xorBytes` hash key (pad 16 (bits2Bytes row)) i
       return m
 
 randBytes :: Int -> SystemRNG -> (ByteString, SystemRNG)
@@ -113,7 +125,6 @@ recvDual :: Connection -> Bool -> IO Plaintext
 recvDual conn sigma = do
     gen <- newGen
     let (p, gen') = generatePrime gen keySize
-    traceM ("p=" ++ show p)
     send conn p
     flip evalStateT gen' $ flip runReaderT p $ do
       crs      <- setupMessy

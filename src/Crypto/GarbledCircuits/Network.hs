@@ -31,7 +31,8 @@ simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
 send :: Serialize a => Connection -> a -> IO ()
 send c x = do
     n <- send' c x
-    traceM ("[send] sent " ++ show n ++ " bytes")
+    {-traceM ("[send] sent " ++ show n ++ " bytes")-}
+    return ()
 
 send' :: Serialize a => Connection -> a -> IO Int
 send' c x = do
@@ -43,7 +44,7 @@ send' c x = do
 recv :: Serialize a => Connection -> IO a
 recv c = do
     (x, n) <- recv' c
-    traceM ("[recv] recieved " ++ show n ++ " bytes")
+    {-traceM ("[recv] recieved " ++ show n ++ " bytes")-}
     return x
 
 recv' :: Serialize a => Connection -> IO (a, Int)
@@ -56,27 +57,29 @@ recv' c = do
 send2 :: Serialize a => Connection -> (a, a) -> IO ()
 send2 conn (x,y) = do
     n <- sum <$> mapM (send' conn) [x,y]
-    traceM ("[send2] sent " ++ show n ++ " bytes")
+    {-traceM ("[send2] sent " ++ show n ++ " bytes")-}
+    return ()
 
 recv2 :: Serialize a => Connection -> IO (a, a)
 recv2 conn = do
     res <- replicateM 2 (recv' conn)
     let [x,y] = map fst res
         n = sum (map snd res)
-    traceM ("[recv2] recieved " ++ show n ++ " bytes")
+    {-traceM ("[recv2] recieved " ++ show n ++ " bytes")-}
     return (x,y)
 
 send4 :: Serialize a => Connection -> (a, a, a, a) -> IO ()
 send4 conn (w,x,y,z) = do
     n <- sum <$> mapM (send' conn) [w,x,y,z]
-    traceM ("[send4] sent " ++ show n ++ " bytes")
+    {-traceM ("[send4] sent " ++ show n ++ " bytes")-}
+    return ()
 
 recv4 :: Serialize a => Connection -> IO (a, a, a, a)
 recv4 conn = do
     res <- replicateM 4 (recv' conn)
     let [w,x,y,z] = map fst res
         n = sum (map snd res)
-    traceM ("[recv4] recieved " ++ show n ++ " bytes")
+    {-traceM ("[recv4] recieved " ++ show n ++ " bytes")-}
     return (w,x,y,z)
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do

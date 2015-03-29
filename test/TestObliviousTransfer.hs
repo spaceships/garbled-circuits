@@ -16,6 +16,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
 import Crypto.GarbledCircuits.ObliviousTransfer
+import Crypto.GarbledCircuits.Encryption
 import Crypto.GarbledCircuits.Network
 
 obliviousTransferTests :: [Test]
@@ -26,6 +27,8 @@ obliviousTransferTests = [
                          , testProperty "Can convert from Integer to ByteString" prop_convWorks
                          , testProperty "OT protocol works" prop_otProtoWorks
                          , testProperty "OT extension works" prop_otExtWorks
+                         , testProperty "Bytes2Bits correct" prop_bytes2Bits
+                         , testProperty "Bits2Bytes w/ padding correct" prop_bits2BytesPadding
                          ]
 
 prop_ddhCorrect :: Property
@@ -79,13 +82,26 @@ prop_otExtWorks = monadicIO $ do
     k <- buildKey <$> BS.pack <$> pick (vectorOf 16 arbitrary)
     pre (isJust k)
     let key = fromJust k
-    x <- fmap BS.pack <$> pick (vectorOf n (vectorOf 16 arbitrary))
-    y <- fmap BS.pack <$> pick (vectorOf n (vectorOf 16 arbitrary))
+    x <- pick (vectorOf n (vectorOf 16 arbitrary))
+    y <- pick (vectorOf n (vectorOf 16 arbitrary))
     b <- pick (vectorOf n arbitrary)
     port <- pick $ choose (1024,65536)
-    run $ forkIO $ listenAt port (\c -> otSend (simpleConn c) key (zip x y))
-    res <- run $ connectTo "localhost" port (\c -> otRecv (simpleConn c) key b)
-    assert (zipWith sel b (zip x y) == res)
+    run $ forkIO $ listenAt port (\c -> otSend (simpleConn c) key (zip (BS.pack <$> x) (BS.pack <$> y)))
+    res <- fmap BS.unpack <$> (run $ connectTo "localhost" port (\c -> otRecv (simpleConn c) key b))
+    monitor (counterexample (show res))
+    monitor (counterexample (show (zipWith sel b (zip x y))))
+    assert (zipWith (sel) b (zip x y) == res)
+
+prop_bytes2Bits :: Property
+prop_bytes2Bits = monadicIO $ do
+    bs <- BS.pack <$> pick (vectorOf 16 arbitrary)
+    assert (bs == bits2Bytes (bytes2Bits 128 bs))
+
+prop_bits2BytesPadding :: Property
+prop_bits2BytesPadding = monadicIO $ do
+    n  <- pick $ choose (1, 128)
+    bs <- pick (vectorOf n arbitrary)
+    assert $ bs == bytes2Bits n (pad 16 (bits2Bytes bs))
 
 sel :: Bool -> (a,a) -> a
 sel False (x,y) = x
