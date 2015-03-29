@@ -4,8 +4,10 @@ module Crypto.GarbledCircuits.ObliviousTransfer where
 
 import Crypto.GarbledCircuits.Network
 import Crypto.GarbledCircuits.Types
-import Crypto.GarbledCircuits.Util (err, bind2, traceM)
+import Crypto.GarbledCircuits.Util
+import Crypto.GarbledCircuits.Encryption hiding (randBool)
 
+import Crypto.Cipher.AES128 (AESKey128)
 import Crypto.Number.Prime
 import Crypto.Number.Generate
 import Crypto.Number.ModArithmetic
@@ -16,9 +18,16 @@ import Control.Applicative
 import Control.Monad.State
 import Control.Monad.Reader
 import Data.Maybe
+import Data.Bits
+import Data.Word
+import Data.Serialize hiding (get, put)
+import Data.List.Split (chunksOf)
+import qualified Data.ByteString as BS
 
 -- diffie-hellman based dual mode oblivious transfer from https://eprint.iacr.org/2007/348
 -- WARNING: this is a work in progress.
+
+keySize = 2048
 
 type SecretKey  = Integer
 type Plaintext  = Integer
@@ -36,50 +45,97 @@ runOT n m = do
 
 --------------------------------------------------------------------------------
 -- ot extension
+-- https://web.engr.oregonstate.edu/~rosulekm/scbib/index.php?n=Paper.IKNP03
 
-otSend :: Connection -> [(ByteString, ByteString)] -> IO ()
-otSend conn elements = undefined
+k = 1 -- number of OTs
 
-otRecv :: Connection -> [Bool] -> IO [ByteString]
-otRecv conn choices = undefined
+otSend :: Connection -> AESKey128 -> [(ByteString, ByteString)] -> IO ()
+otSend conn key elems = do
+    let n = length elems
+    g0 <- newGen
+    let (s, g1) = randBits k g0
+    q <- forM s $ \b -> do
+      j <- recvOT conn b
+      return j
+    let rows = fmap (pad 16 . bits2Bytes) (tr $ fmap (bytes2Bits n) q)
+    forM_ (zip3 [0..] rows elems) $ \(i, row, (x,y)) -> do
+      let ctx = x `xorBytes` hash key row i
+      let cty = y `xorBytes` hash key (row `xorBytes` pad 16 (bits2Bytes s)) i
+      send2 conn (ctx, cty)
+
+otRecv :: Connection -> AESKey128 -> [Bool] -> IO [ByteString]
+otRecv conn key choices = do
+    let n = length choices
+        r = bits2Bytes choices
+    g0 <- newGen
+    let (t, g1) = randBitMatrix (n, k) g0
+    forM (tr t) $ \col -> do
+      let j = bits2Bytes col
+      sendOT conn (pad 16 j, pad 16 j `xorBytes` pad 16 r)
+    forM (zip3 [0..] choices t) $ \(i, b, row) -> do
+      (x,y) <- recv2 conn
+      let c = if b then y else x
+      let m = pad 16 c `xorBytes` hash key (pad 16 $ bits2Bytes row) i
+      return m
+
+randBytes :: Int -> SystemRNG -> (ByteString, SystemRNG)
+randBytes = cprgGenerate
+
+randBits :: Int -> SystemRNG -> ([Bool], SystemRNG)
+randBits n g = (fmap fst bits, snd (last bits))
+  where
+    bits = take n $ tail $ iterate (\(_, g) -> randBool g) (False, g)
+
+randBitMatrix :: (Int, Int) -> SystemRNG -> ([[Bool]], SystemRNG)
+randBitMatrix (height, width) g0 = (chunksOf width bits, g1)
+  where
+    (bits, g1) = randBits (height * width) g0
+
+randBool :: SystemRNG -> (Bool, SystemRNG)
+randBool g0 = ((byte .&. 1) > 0, g1)
+  where
+    (b, g1) = cprgGenerate 1 g0
+    byte    = BS.head b
 
 --------------------------------------------------------------------------------
--- dual mode ot)
+-- dual mode ot
+-- TODO find a more implementable OT
 
 -- only intended to share 128 bit secrets
-sendOne :: Connection -> (ByteString, ByteString) -> IO ()
-sendOne conn (x,y) = sendDual conn (os2ip x, os2ip y)
+sendOT :: Connection -> (ByteString, ByteString) -> IO ()
+sendOT conn (x,y) = sendDual conn (os2ip x, os2ip y)
 
 -- only intended to share 128 bit secrets
-recvOne :: Connection -> Bool -> IO ByteString
-recvOne conn sigma = fromJust <$> i2ospOf 16 <$> recvDual conn sigma
+recvOT :: Connection -> Bool -> IO ByteString
+recvOT conn sigma = fromJust <$> i2ospOf 16 <$> recvDual conn sigma
 
 recvDual :: Connection -> Bool -> IO Plaintext
 recvDual conn sigma = do
-    gen <- cprgCreate <$> createEntropyPool
-    let (p, gen') = generatePrime gen 1024
+    gen <- newGen
+    let (p, gen') = generatePrime gen keySize
+    traceM ("p=" ++ show p)
     send conn p
     flip evalStateT gen' $ flip runReaderT p $ do
       crs      <- setupMessy
       (pk, sk) <- keyGen crs sigma
-      send4 conn crs
-      send2 conn pk
-      c0 <- recv2 conn
-      c1 <- recv2 conn
+      liftIO $ send4 conn crs
+      liftIO $ send2 conn pk
+      c0 <- liftIO $ recv2 conn
+      c1 <- liftIO $ recv2 conn
       if sigma then dec sk c1 else dec sk c0
 
 sendDual :: Connection -> (Plaintext, Plaintext) -> IO ()
 sendDual conn elems = do
     p <- recv conn
-    when (fst elems > p) $ err "sendOT" "arg0 greater than p"
-    when (snd elems > p) $ err "sendOT" "arg1 greater than p"
-    gen <- cprgCreate <$> createEntropyPool
+    when (fst elems > p) $ err "sendDual" "arg0 greater than p"
+    when (snd elems > p) $ err "sendDual" "arg1 greater than p"
+    gen <- newGen
     flip evalStateT gen $ flip runReaderT p $ do
-      crs <- recv4 conn
-      pk  <- recv2 conn
+      crs <- liftIO $ recv4 conn
+      pk  <- liftIO $ recv2 conn
       (c0,c1) <- enc crs pk elems
-      send2 conn c0
-      send2 conn c1
+      liftIO $ send2 conn c0
+      liftIO $ send2 conn c1
 
 setupMessy :: OT CRS
 setupMessy = do
@@ -154,6 +210,23 @@ ddhDec sk (c0, c1) = do
     modMult c1 =<< (inverseCoprimes <$> modExp c0 sk <*> pure p)
 
 --------------------------------------------------------------------------------
+-- helpers
+
+tr :: [[a]] -> [[a]]
+tr xs | null xs        = []
+      | null (head xs) = []
+      | otherwise      = fmap head xs : tr (fmap tail xs)
+
+newGen :: IO SystemRNG
+newGen = cprgCreate <$> createEntropyPool
+
+bits2Bytes :: [Bool] -> ByteString
+bits2Bytes = BS.pack . fmap bits2Word . chunksOf 8
+
+bytes2Bits :: Int -> ByteString -> [Bool]
+bytes2Bits n = take n . concatMap word2Bits . BS.unpack
+
+--------------------------------------------------------------------------------
 -- OT monad helpers
 
 -- | Modular exponentiation using the prime p which is created in 'ddhKeyGen'
@@ -192,29 +265,3 @@ rand f = do
     let (a, g') = f g
     put g'
     return a
-
-send2 :: Connection -> (Integer, Integer) -> OT ()
-send2 conn (x,y) = liftIO $ do
-    n <- sum <$> mapM (send' conn) [x,y]
-    traceM ("[send2] sent " ++ show n ++ " bytes")
-
-recv2 :: Connection -> OT (Integer, Integer)
-recv2 conn = liftIO $ do
-    res <- replicateM 2 (recv' conn)
-    let [x,y] = map fst res
-        n = sum (map snd res)
-    traceM ("[recv2] recieved " ++ show n ++ " bytes")
-    return (x,y)
-
-send4 :: Connection -> (Integer, Integer, Integer, Integer) -> OT ()
-send4 conn (w,x,y,z) = liftIO $ do
-    n <- sum <$> mapM (send' conn) [w,x,y,z]
-    traceM ("[send4] sent " ++ show n ++ " bytes")
-
-recv4 :: Connection -> OT (Integer, Integer, Integer, Integer)
-recv4 conn = liftIO $ do
-    res <- replicateM 4 (recv' conn)
-    let [w,x,y,z] = map fst res
-        n = sum (map snd res)
-    traceM ("[recv4] recieved " ++ show n ++ " bytes")
-    return (w,x,y,z)

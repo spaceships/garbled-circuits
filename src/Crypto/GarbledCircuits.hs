@@ -47,7 +47,7 @@ garblerProto prog inp conn = do
       traceM "[garblerProto] sending key"
       send conn (ctx_key ctx)
       traceM "[garblerProto] performing OT"
-      otSend conn theirPairs
+      otSend conn (ctx_key ctx) theirPairs
       traceM "[garblerProto] recieving output"
       wires <- recv conn
       let result = map (ungarble ctx) wires
@@ -65,7 +65,7 @@ evaluatorProto prog inp conn = do
       traceM "[evaluatorProto] recieving key"
       key <- recv conn :: IO AESKey128
       traceM "[evaluatorProto] performing OT"
-      inpEv <- otRecv conn inp
+      inpEv <- otRecv conn key inp
       traceM "[evaluatorProto] evaluating garbled circuit"
       let gg  = reconstruct tt hgs
           out = eval gg key inpGb inpEv

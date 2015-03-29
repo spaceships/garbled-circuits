@@ -78,7 +78,7 @@ xorBytes x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
              | otherwise = BS.pack $ BS.zipWith Data.Bits.xor x y
 
 orBytes :: ByteString -> ByteString -> ByteString
-orBytes x y | BS.length x /= BS.length y = err "xor" "unequal length inputs"
+orBytes x y | BS.length x /= BS.length y = err "or" "unequal length inputs"
             | otherwise = BS.pack $ BS.zipWith (.|.) x y
 
 xorWords :: [Word8] -> [Word8] -> [Word8]

@@ -21,6 +21,7 @@ import qualified Data.Bits          as Bits
 import           Data.Maybe
 import qualified Data.Serialize     as Ser
 import           Data.Word
+import           Data.Functor
 import           System.Entropy
 
 --------------------------------------------------------------------------------
@@ -28,7 +29,7 @@ import           System.Entropy
 
 -- The AES-based hash function from the halfgates paper (p8)
 -- Uses native hw instructions if available
-hash :: AESKey128 -> Wirelabel -> Int -> Wirelabel
+hash :: AESKey128 -> ByteString -> Int -> ByteString
 hash key x i = encryptBlock key k `xorBytes` k
   where
     k = double x `xorBytes` pad 16 (Ser.encode i)
@@ -70,8 +71,7 @@ randBlock = liftIO (getEntropy 16)
 
 randBool :: Garble Bool
 randBool = do
-  blk <- randBlock
-  let w8 = head (BS.unpack blk)
+  w8 <- BS.head <$> liftIO (getEntropy 1)
   return (w8 .&. 1 > 0)
 
 updateKey :: AESKey128 -> Garble ()

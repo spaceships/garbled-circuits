@@ -1,10 +1,11 @@
 module Crypto.GarbledCircuits.Network
-  (
-    simpleConn
+  ( simpleConn
   , send
-  , send'
   , recv
-  , recv'
+  , send2
+  , recv2
+  , send4
+  , recv4
   , connectTo
   , listenAt
   )
@@ -15,6 +16,7 @@ import Crypto.GarbledCircuits.Util
 
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
+import           Data.Functor
 import           Data.Serialize (decode, encode, Serialize)
 import           Network.Socket hiding (send, recv)
 import           Network.BSD
@@ -49,8 +51,33 @@ recv' c = do
     num <- conn_recv c 8
     let n = either (err "recieve") id (decode num)
     str <- conn_recv c n
-    either (err "recv") (\x -> return (x, n)) (decode str)
+    either (err "recv") (\x -> return (x, n+8)) (decode str)
 
+send2 :: Serialize a => Connection -> (a, a) -> IO ()
+send2 conn (x,y) = do
+    n <- sum <$> mapM (send' conn) [x,y]
+    traceM ("[send2] sent " ++ show n ++ " bytes")
+
+recv2 :: Serialize a => Connection -> IO (a, a)
+recv2 conn = do
+    res <- replicateM 2 (recv' conn)
+    let [x,y] = map fst res
+        n = sum (map snd res)
+    traceM ("[recv2] recieved " ++ show n ++ " bytes")
+    return (x,y)
+
+send4 :: Serialize a => Connection -> (a, a, a, a) -> IO ()
+send4 conn (w,x,y,z) = do
+    n <- sum <$> mapM (send' conn) [w,x,y,z]
+    traceM ("[send4] sent " ++ show n ++ " bytes")
+
+recv4 :: Serialize a => Connection -> IO (a, a, a, a)
+recv4 conn = do
+    res <- replicateM 4 (recv' conn)
+    let [w,x,y,z] = map fst res
+        n = sum (map snd res)
+    traceM ("[recv4] recieved " ++ show n ++ " bytes")
+    return (w,x,y,z)
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do
     let port = toEnum port_

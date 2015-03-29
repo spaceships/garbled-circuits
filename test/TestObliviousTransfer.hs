@@ -7,6 +7,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Serialize
 import Crypto.Number.Serialize
+import           Crypto.Cipher.AES128
 import qualified Data.ByteString as BS
 
 import Test.Framework
@@ -24,6 +25,7 @@ obliviousTransferTests = [
                          , testProperty "Decryption mode OT is correct" prop_decModeCorrect
                          , testProperty "Can convert from Integer to ByteString" prop_convWorks
                          , testProperty "OT protocol works" prop_otProtoWorks
+                         , testProperty "OT extension works" prop_otExtWorks
                          ]
 
 prop_ddhCorrect :: Property
@@ -67,9 +69,23 @@ prop_otProtoWorks = once $ monadicIO $ do
     n <- BS.pack <$> pick (vectorOf 16 arbitrary)
     b <- pick arbitrary
     port <- pick $ choose (1024,65536)
-    run $ forkIO $ listenAt port (flip sendOne (m,n) . simpleConn)
-    res <- run $ connectTo "localhost" port (flip recvOne b . simpleConn)
+    run $ forkIO $ listenAt port (flip sendOT (m,n) . simpleConn)
+    res <- run $ connectTo "localhost" port (flip recvOT b . simpleConn)
     assert (sel b (m,n) == res)
+
+prop_otExtWorks :: Property
+prop_otExtWorks = monadicIO $ do
+    let n = 1
+    k <- buildKey <$> BS.pack <$> pick (vectorOf 16 arbitrary)
+    pre (isJust k)
+    let key = fromJust k
+    x <- fmap BS.pack <$> pick (vectorOf n (vectorOf 16 arbitrary))
+    y <- fmap BS.pack <$> pick (vectorOf n (vectorOf 16 arbitrary))
+    b <- pick (vectorOf n arbitrary)
+    port <- pick $ choose (1024,65536)
+    run $ forkIO $ listenAt port (\c -> otSend (simpleConn c) key (zip x y))
+    res <- run $ connectTo "localhost" port (\c -> otRecv (simpleConn c) key b)
+    assert (zipWith sel b (zip x y) == res)
 
 sel :: Bool -> (a,a) -> a
 sel False (x,y) = x

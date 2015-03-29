@@ -41,6 +41,7 @@ library
                       , entropy
                       , mtl
                       , network
+                      , split
 
   ghc-options:          -fwarn-incomplete-patterns
   default-language:     Haskell2010
@@ -63,6 +64,7 @@ test-suite test-garbled-circuits
                       , QuickCheck
                       , bytestring
                       , cereal
+                      , cipher-aes128
                       , containers
                       , crypto-numbers
                       , entropy
