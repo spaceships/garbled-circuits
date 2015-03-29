@@ -36,11 +36,11 @@ library
                       , cereal
                       , cipher-aes128
                       , containers
+                      , crypto-numbers
+                      , crypto-random
                       , entropy
                       , mtl
                       , network
-                      , crypto-numbers
-                      , crypto-random
 
   ghc-options:          -fwarn-incomplete-patterns
   default-language:     Haskell2010
@@ -61,8 +61,10 @@ test-suite test-garbled-circuits
                       , examples/adder
   build-depends:        base >=4.7 && <4.8
                       , QuickCheck
+                      , bytestring
                       , cereal
                       , containers
+                      , crypto-numbers
                       , entropy
                       , garbled-circuits
                       , test-framework

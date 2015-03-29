@@ -1,10 +1,13 @@
 module TestObliviousTransfer where
 
+import            Data.Word
 import Control.Concurrent
 import Data.Functor
 import Data.Maybe
 import Data.Monoid
 import Data.Serialize
+import Crypto.Number.Serialize
+import qualified Data.ByteString as BS
 
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
@@ -19,7 +22,8 @@ obliviousTransferTests = [
                            testProperty "Diffie-Hellman is correct" prop_ddhCorrect
                          , testProperty "Messy mode OT is correct" prop_messyModeCorrect
                          , testProperty "Decryption mode OT is correct" prop_decModeCorrect
-                         , testProperty "OT protocol works" prop_protoWorks
+                         , testProperty "Can convert from Integer to ByteString" prop_convWorks
+                         , testProperty "OT protocol works" prop_otProtoWorks
                          ]
 
 prop_ddhCorrect :: Property
@@ -52,16 +56,20 @@ testMode setup = once $ monadicIO $ do
     assert (sel b (m',n') == sel b (m,n))             -- can decrypt the chosen ciphertext
     assert (sel (not b) (m',n') /= sel (not b) (m,n)) -- and only the chosen ciphertext
 
-prop_protoWorks :: Property
-prop_protoWorks = once $ monadicIO $ do
-    m <- pick $ choose (0,maxBound) :: PropertyM IO Int
-    n <- pick $ choose (0,maxBound) :: PropertyM IO Int
-    b <- pick arbitrary             :: PropertyM IO Bool
-    let (m',n') = (fromIntegral m, fromIntegral n)
+prop_convWorks :: Property
+prop_convWorks = monadicIO $ do
+  bs <- BS.pack <$> pick (vectorOf 4 arbitrary)
+  assert (bs == fromJust (i2ospOf 4 (os2ip bs)))
+
+prop_otProtoWorks :: Property
+prop_otProtoWorks = once $ monadicIO $ do
+    m <- BS.pack <$> pick (vectorOf 16 arbitrary)
+    n <- BS.pack <$> pick (vectorOf 16 arbitrary)
+    b <- pick arbitrary
     port <- pick $ choose (1024,65536)
-    run $ forkIO $ listenAt port (sendOT (m',n') . simpleConn)
-    res <- run $ connectTo "localhost" port (recvOT b . simpleConn)
-    assert (sel b (m',n') == res)
+    run $ forkIO $ listenAt port (flip sendOne (m,n) . simpleConn)
+    res <- run $ connectTo "localhost" port (flip recvOne b . simpleConn)
+    assert (sel b (m,n) == res)
 
 sel :: Bool -> (a,a) -> a
 sel False (x,y) = x

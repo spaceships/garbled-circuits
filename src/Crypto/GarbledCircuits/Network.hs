@@ -2,7 +2,9 @@ module Crypto.GarbledCircuits.Network
   (
     simpleConn
   , send
+  , send'
   , recv
+  , recv'
   , connectTo
   , listenAt
   )
@@ -26,18 +28,28 @@ simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
 
 send :: Serialize a => Connection -> a -> IO ()
 send c x = do
+    n <- send' c x
+    traceM ("[send] sent " ++ show n ++ " bytes")
+
+send' :: Serialize a => Connection -> a -> IO Int
+send' c x = do
     let encoding = encode x; n = BS.length encoding
-    traceM ("[send] sending " ++ show n ++ " bytes")
     conn_send c (encode n)
     conn_send c encoding
+    return (n + 8)
 
 recv :: Serialize a => Connection -> IO a
 recv c = do
+    (x, n) <- recv' c
+    traceM ("[recv] recieved " ++ show n ++ " bytes")
+    return x
+
+recv' :: Serialize a => Connection -> IO (a, Int)
+recv' c = do
     num <- conn_recv c 8
     let n = either (err "recieve") id (decode num)
     str <- conn_recv c n
-    traceM ("[recv] recieved " ++ show n ++ " bytes")
-    either (err "recv") return (decode str)
+    either (err "recv") (\x -> return (x, n)) (decode str)
 
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do
