@@ -46,7 +46,7 @@ library
   ghc-options:          -fwarn-incomplete-patterns
   default-language:     Haskell2010
   default-extensions:   CPP
-  --cpp-options:          -DDEBUG
+  cpp-options:          -DDEBUG
 
 source-repository head
   type:                 git

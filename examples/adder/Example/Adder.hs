@@ -29,8 +29,8 @@ addBits xs ys = do
 
 adderNBit :: Int -> Program Circuit
 adderNBit n = buildCircuit $ do
-    inp1      <- replicateM n (input PartyA)
-    inp2      <- replicateM n (input PartyB)
+    inp1      <- replicateM n (input Garbler)
+    inp2      <- replicateM n (input Evaluator)
     (outs, _) <- addBits inp1 inp2
     return outs
 

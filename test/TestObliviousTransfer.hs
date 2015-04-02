@@ -28,7 +28,7 @@ obliviousTransferTests = [
                          , testProperty "OT protocol works" prop_otProtoWorks
                          , testProperty "OT extension works" prop_otExtWorks
                          , testProperty "Bytes2Bits correct" prop_bytes2Bits
-                         , testProperty "Bits2Bytes w/ padding correct" prop_bits2BytesPadding
+                         , testProperty "Bits2Bytes w/ left padding correct" prop_bits2BytesLPad
                          ]
 
 prop_ddhCorrect :: Property
@@ -77,7 +77,7 @@ prop_otProtoWorks = once $ monadicIO $ do
     assert (sel b (m,n) == res)
 
 prop_otExtWorks :: Property
-prop_otExtWorks = monadicIO $ do
+prop_otExtWorks = once $ monadicIO $ do
     let n = 1
     k <- buildKey <$> BS.pack <$> pick (vectorOf 16 arbitrary)
     pre (isJust k)
@@ -97,11 +97,11 @@ prop_bytes2Bits = monadicIO $ do
     bs <- BS.pack <$> pick (vectorOf 16 arbitrary)
     assert (bs == bits2Bytes (bytes2Bits 128 bs))
 
-prop_bits2BytesPadding :: Property
-prop_bits2BytesPadding = monadicIO $ do
+prop_bits2BytesLPad :: Property
+prop_bits2BytesLPad = monadicIO $ do
     n  <- pick $ choose (1, 128)
     bs <- pick (vectorOf n arbitrary)
-    assert $ bs == bytes2Bits n (pad 16 (bits2Bytes bs))
+    assert $ bs == bytes2Bits n (lpad 16 (bits2Bytes bs))
 
 sel :: Bool -> (a,a) -> a
 sel False (x,y) = x

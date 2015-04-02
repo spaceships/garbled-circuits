@@ -5,7 +5,8 @@ module Crypto.GarbledCircuits.Encryption
   , randBlock
   , randBool
   , updateKey
-  , pad
+  , lpad
+  , rpad
   , updateR
   )
 where
@@ -32,10 +33,13 @@ import           System.Entropy
 hash :: AESKey128 -> ByteString -> Int -> ByteString
 hash key x i = encryptBlock key k `xorBytes` k
   where
-    k = double x `xorBytes` pad 16 (Ser.encode i)
+    k = double x `xorBytes` rpad 16 (Ser.encode i)
 
-pad :: Int -> ByteString -> ByteString
-pad n ct = BS.append (BS.replicate (n - BS.length ct) 0) ct
+rpad :: Int -> ByteString -> ByteString
+rpad n ct = BS.append (BS.replicate (n - BS.length ct) 0) ct
+
+lpad :: Int -> ByteString -> ByteString
+lpad n ct = BS.append ct (BS.replicate (n - BS.length ct) 0)
 
 double :: ByteString -> ByteString
 double c = BS.pack result
@@ -62,7 +66,7 @@ genKey = do
 genR :: Garble Wirelabel
 genR = do
     b <- randBlock
-    let color = pad 16 $ Ser.encode (1 :: Int)
+    let color = rpad 16 $ Ser.encode (1 :: Int)
         wl    = orBytes color b
     return wl
 

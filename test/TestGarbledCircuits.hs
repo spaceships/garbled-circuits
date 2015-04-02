@@ -29,7 +29,7 @@ garbledCircuitTests = [ testProperty "The colors of new wirelabels are different
                       , testProperty "Arbitrary circuit is correct" prop_arbitraryCircuitCorrect
                       , testProperty "Reconstruct is correct" prop_reconstructCorrect
                       , testProperty "Serialization is correct" prop_serializeCorrect
-                      {-, testProperty "Protocol works" prop_protoWorks-}
+                      , testProperty "Protocol works" prop_protoWorks
                       ]
 
 prop_colorsDifferent :: Property
