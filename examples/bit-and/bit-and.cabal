@@ -1,4 +1,4 @@
-name:                adder
+name:                bit-and
 version:             0.1.0.0
 license:             Apache-2.0
 author:              Brent Carmer
@@ -8,16 +8,14 @@ category:            Crypto
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable adder-garbler.a
+executable bit-and-garbler.a
   default-language:    Haskell2010
   main-is:             Garbler.hs
-  other-modules:       Example.Adder
   build-depends:       base >=4.7 && <4.8
                      , garbled-circuits
 
-executable adder-evaluator.a
+executable bit-and-evaluator.a
   default-language:    Haskell2010
   main-is:             Evaluator.hs
-  other-modules:       Example.Adder
   build-depends:       base >=4.7 && <4.8
                      , garbled-circuits

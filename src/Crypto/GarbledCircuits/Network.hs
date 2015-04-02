@@ -81,6 +81,7 @@ recv4 conn = do
         n = sum (map snd res)
     {-traceM ("[recv4] recieved " ++ show n ++ " bytes")-}
     return (w,x,y,z)
+
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
 connectTo host port_ f = withSocketsDo $ do
     let port = toEnum port_
