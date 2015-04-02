@@ -1,6 +1,6 @@
+![garbled circuit picture](https://web.engr.oregonstate.edu/~rosulekm/scbib.png)
 garbled-circuits
 ================
-![garbled circuit picture](https://web.engr.oregonstate.edu/~rosulekm/scbib.png)
 
 This library is a Haskell DSL for secure two-party computation with garbled
 circuits. You can use it to create secure protocols in the honest but curious
