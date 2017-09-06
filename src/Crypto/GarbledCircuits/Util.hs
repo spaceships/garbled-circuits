@@ -41,6 +41,7 @@ import qualified Data.Set as S
 import           Data.Tuple
 import           Data.Word
 import           Numeric (showHex)
+import Prelude hiding (traverse)
 
 #ifdef DEBUG
 import Debug.Trace

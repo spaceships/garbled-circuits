@@ -95,7 +95,7 @@ listenAt :: Port -> (Handle -> IO a) -> IO a
 listenAt port_ f = withSocketsDo $ do
     let port = toEnum port_
     lsock <- socket AF_INET Stream 0
-    bindSocket lsock (SockAddrInet port iNADDR_ANY)
+    bind lsock (SockAddrInet port iNADDR_ANY)
     listen lsock sOMAXCONN
     (sock,SockAddrInet _ _) <- accept lsock
     perform sock f

@@ -8,7 +8,7 @@ Stability   : experimental
 This module provides a language for creating @Program Circuit@s.
 
 The general idea is that we use the constructors to generate @Ref@s to circuit structures. Then, the
-@Builder@ monad makes sure repeated structures get reused. 
+@Builder@ monad makes sure repeated structures get reused.
 
 When you are making a circuit, you can think of a @Ref@ as a circuit's output.
 
@@ -17,20 +17,20 @@ When you are making a circuit, you can think of a @Ref@ as a circuit's output.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Crypto.GarbledCircuits.Language
-  ( 
-  -- * Building and Evaluating Circuits
-    Builder
-  , buildCircuit
-  , evalCircuit
-  -- * Smart Constructors
-  -- |Use these constructors to create boolean circuits in the 'Builder' monad.
-  , input
-  , xor
-  , and
-  , or
-  , not
-  , const
-  )
+ -- (
+  -- -- * Building and Evaluating Circuits
+  --   Builder
+  -- , buildCircuit
+  -- , evalCircuit
+  -- -- * Smart Constructors
+  -- -- |Use these constructors to create boolean circuits in the 'Builder' monad.
+  -- , input
+  -- , xor
+  -- , and
+  -- , or
+  -- , not
+  -- , const
+  -- )
 where
 
 import Prelude hiding (and, not, or, const)
@@ -40,10 +40,12 @@ import Crypto.GarbledCircuits.Types
 import Crypto.GarbledCircuits.Util hiding (nextRef)
 
 import           Control.Applicative hiding (Const)
+import           Control.Monad (zipWithM)
 import           Control.Monad.State
 import qualified Data.Bits
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Word
 
 data CircuitSt = CircuitSt { st_nextRef     :: Ref Circuit
                            , st_input_gb   :: S.Set (Ref Circuit)
@@ -155,16 +157,65 @@ and x y = intern (And x y)
 or :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
 or x y = intern (Or x y)
 
--- |Bitwise negation. 
+-- |Bitwise negation.
 -- This gate will be folded into a binary gate above it in the circuit.
 --
 -- Note: programs with toplevel 'Not' or 'Const' are not garbleable.
 not :: Ref Circuit -> Builder (Ref Circuit)
 not x = intern (Not x)
 
--- |Create a constant value. 
+-- |Create a constant value.
 -- This gate will be folded into a binary gate above it in the circuit.
 --
 -- Note: programs with toplevel 'Not' or 'Const' are not garbleable.
 const :: Bool -> Builder (Ref Circuit)
 const b = intern (Const b)
+
+--------------------------------------------------------------------------------
+-- high level constructors
+
+ifThenElse :: Ref Circuit -> Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
+ifThenElse cond a b = bind2 or (and cond a) (and b =<< not cond)
+
+-- |Compare two bits.
+eqBit :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
+eqBit x y = bind2 or (and x y) (bind2 and (not x) (not y))
+
+ltBit :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
+ltBit x y = and y =<< not x
+
+-- |Compare two bits.
+leqBit :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
+leqBit x y = or y =<< not x
+
+-- |Compare two bits.
+gtBit :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
+gtBit x y = not =<< leqBit x y
+
+gtHelper :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit, Ref Circuit)
+gtHelper [x] [y] = do
+    gt <- gtBit x y
+    eq <- eqBit x y
+    return (gt, eq)
+gtHelper (x:xs) (y:ys) = do
+    (restGt, restEq) <- gtHelper xs ys
+    thisGt <- gtBit x y
+    thisEq <- eqBit x y
+    gt <- ifThenElse restEq thisGt restGt
+    eq <- and restEq thisEq
+    return (gt, eq)
+gtHelper _ _ = undefined
+
+-- |Compare two little-endian binary values.
+--
+-- Note: I do not understand why we have to swap the arguments.
+gt :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit)
+gt xs ys = fst <$> gtHelper ys xs
+
+-- fancyGt :: Word8 -> Word8 -> Bool
+-- fancyGt x y = head $ evalCircuit (word2Bits x) (word2Bits y) $ buildCircuit $ do
+--     xs   <- replicateM 8 (input Evaluator)
+--     ys   <- replicateM 8 (input Garbler)
+--     c    <- gt xs ys
+--     return [c]
+

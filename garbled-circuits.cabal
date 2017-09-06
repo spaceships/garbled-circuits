@@ -6,7 +6,7 @@ description:
     .
     Uses the latest optimizations to reduce communication including free-xor and half-gates.
     .
-    Uses AES-based garbling for AESNI support.
+    Uses AES-based garbling with AESNI support.
 license:             Apache-2.0
 license-file:        LICENSE
 author:              Brent Carmer
@@ -31,7 +31,7 @@ library
                       , Crypto.GarbledCircuits.Eval
                       , Crypto.GarbledCircuits.ObliviousTransfer
                       , Crypto.GarbledCircuits.Network
-  build-depends:        base >=4.7 && <4.8
+  build-depends:        base
                       , bytestring
                       , cereal
                       , cipher-aes128
@@ -60,7 +60,7 @@ test-suite test-garbled-circuits
                       , TestObliviousTransfer
   hs-source-dirs:       test
                       , examples/adder
-  build-depends:        base >=4.7 && <4.8
+  build-depends:        base
                       , QuickCheck
                       , bytestring
                       , cereal

@@ -12,12 +12,12 @@ executable adder-garbler.a
   default-language:    Haskell2010
   main-is:             Garbler.hs
   other-modules:       Example.Adder
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base
                      , garbled-circuits
 
 executable adder-evaluator.a
   default-language:    Haskell2010
   main-is:             Evaluator.hs
   other-modules:       Example.Adder
-  build-depends:       base >=4.7 && <4.8
+  build-depends:       base
                      , garbled-circuits
