@@ -1,0 +1,23 @@
+name:                classifier
+version:             0.1.0.0
+license:             Apache-2.0
+author:              Brent Carmer
+maintainer:          bcarmer@gmail.com
+copyright:           2015
+category:            Crypto
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable classifier-garbler.a
+  default-language:    Haskell2010
+  main-is:             Garbler.hs
+  other-modules:       Example.Classifier
+  build-depends:       base
+                     , garbled-circuits
+
+executable classifier-evaluator.a
+  default-language:    Haskell2010
+  main-is:             Evaluator.hs
+  other-modules:       Example.Classifier
+  build-depends:       base
+                     , garbled-circuits

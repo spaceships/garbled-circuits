@@ -145,6 +145,9 @@ input p = do i   <- nextInputId
                Evaluator -> st { st_input_ev = S.insert ref (st_input_ev st) }
              return ref
 
+inputs :: Int -> Party -> Builder [Ref Circuit]
+inputs n p = replicateM n (input p)
+
 -- |Bitwise xor. This gate will be garbled as a 'FreeXor'.
 xor :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
 xor x y = intern (Xor x y)
@@ -152,6 +155,10 @@ xor x y = intern (Xor x y)
 -- |Bitwise and. This gate will be garbled as a 'HalfGate'.
 and :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
 and x y = intern (And x y)
+
+ands :: [Ref Circuit] -> Builder (Ref Circuit)
+ands [x]    = return x
+ands (x:xs) = and x =<< ands xs
 
 -- |Bitwise or. This gate will be garbled as a 'HalfGate'.
 or :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
@@ -192,30 +199,22 @@ leqBit x y = or y =<< not x
 gtBit :: Ref Circuit -> Ref Circuit -> Builder (Ref Circuit)
 gtBit x y = not =<< leqBit x y
 
-gtHelper :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit, Ref Circuit)
-gtHelper [x] [y] = do
-    gt <- gtBit x y
-    eq <- eqBit x y
-    return (gt, eq)
-gtHelper (x:xs) (y:ys) = do
-    (restGt, restEq) <- gtHelper xs ys
-    thisGt <- gtBit x y
-    thisEq <- eqBit x y
-    gt <- ifThenElse restEq thisGt restGt
-    eq <- and restEq thisEq
-    return (gt, eq)
-gtHelper _ _ = undefined
-
 -- |Compare two little-endian binary values.
 --
 -- Note: I do not understand why we have to swap the arguments.
-gt :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit)
-gt xs ys = fst <$> gtHelper ys xs
-
--- fancyGt :: Word8 -> Word8 -> Bool
--- fancyGt x y = head $ evalCircuit (word2Bits x) (word2Bits y) $ buildCircuit $ do
---     xs   <- replicateM 8 (input Evaluator)
---     ys   <- replicateM 8 (input Garbler)
---     c    <- gt xs ys
---     return [c]
+gtBinary :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit)
+gtBinary xs ys = fst <$> gtHelper ys xs
+  where
+    gtHelper [x] [y] = do
+        gt <- gtBit x y
+        eq <- eqBit x y
+        return (gt, eq)
+    gtHelper (x:xs) (y:ys) = do
+        (restGt, restEq) <- gtHelper xs ys
+        thisGt <- gtBit x y
+        thisEq <- eqBit x y
+        gt <- ifThenElse restEq thisGt restGt
+        eq <- and restEq thisEq
+        return (gt, eq)
+    gtHelper _ _ = undefined
 
