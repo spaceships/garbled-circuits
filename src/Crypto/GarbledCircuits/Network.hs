@@ -105,4 +105,5 @@ perform sock f = withSocketsDo $ do
     handle <- socketToHandle sock ReadWriteMode
     result <- f handle
     hClose handle
+    close sock
     return result
