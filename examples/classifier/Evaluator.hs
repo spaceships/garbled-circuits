@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad
 import Data.Word
 import System.Environment
 
@@ -12,5 +13,5 @@ main :: IO ()
 main = do
     (server:port:args) <- getArgs
     let input = concat [ word2Bits (read w :: Word8) | w <- args ]
-    result <- connectTo server (read port) (evaluatorProto classifier input . simpleConn)
+    result <- connectTo server (read port) (evaluatorProto classifier input <=< simpleConn)
     print (bits2Word result :: Word8)

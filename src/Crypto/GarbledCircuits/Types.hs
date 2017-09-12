@@ -8,6 +8,7 @@ import           Crypto.Cipher.AES128
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.Set as S
+import           Data.IORef
 
 type Map = M.Map
 type Set = S.Set
@@ -139,6 +140,8 @@ type Port = Int
 
 data Connection = Connection { conn_send :: ByteString -> IO ()
                              , conn_recv :: Int -> IO ByteString
+                             , conn_bytes_sent     :: IORef Int
+                             , conn_bytes_received :: IORef Int
                              }
 
 --------------------------------------------------------------------------------

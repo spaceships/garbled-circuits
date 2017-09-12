@@ -8,6 +8,7 @@ module Crypto.GarbledCircuits.Network
   , recv4
   , connectTo
   , listenAt
+  , printConnectionInfo
   )
 where
 
@@ -21,65 +22,47 @@ import           Data.Serialize (decode, encode, Serialize)
 import           Network.Socket hiding (send, recv)
 import           Network.BSD
 import           System.IO
+import           Data.IORef
+import           Text.Printf
 
 --------------------------------------------------------------------------------
 -- network
 
-simpleConn :: Handle -> Connection
-simpleConn h = Connection { conn_send = BS.hPut h, conn_recv = BS.hGet h }
+simpleConn :: Handle -> IO Connection
+simpleConn h = do
+    zero0 <- newIORef 0
+    zero1 <- newIORef 0
+    Connection (BS.hPut h) (BS.hGet h) <$> newIORef 0 <*> newIORef 0
 
 send :: Serialize a => Connection -> a -> IO ()
 send c x = do
-    n <- send' c x
-    {-traceM ("[send] sent " ++ show n ++ " bytes")-}
-    return ()
-
-send' :: Serialize a => Connection -> a -> IO Int
-send' c x = do
     let encoding = encode x; n = BS.length encoding
     conn_send c (encode n)
     conn_send c encoding
-    return (n + 8)
+    modifyIORef' (conn_bytes_sent c) (+ (n+8))
 
 recv :: Serialize a => Connection -> IO a
 recv c = do
-    (x, n) <- recv' c
-    {-traceM ("[recv] recieved " ++ show n ++ " bytes")-}
-    return x
-
-recv' :: Serialize a => Connection -> IO (a, Int)
-recv' c = do
     num <- conn_recv c 8
     let n = either (err "recieve") id (decode num)
     str <- conn_recv c n
-    either (err "recv") (\x -> return (x, n+8)) (decode str)
+    modifyIORef' (conn_bytes_received c) (+ (n+8))
+    either (err "recv") return (decode str)
 
 send2 :: Serialize a => Connection -> (a, a) -> IO ()
-send2 conn (x,y) = do
-    n <- sum <$> mapM (send' conn) [x,y]
-    {-traceM ("[send2] sent " ++ show n ++ " bytes")-}
-    return ()
+send2 conn (x,y) = mapM_ (send conn) [x,y]
 
 recv2 :: Serialize a => Connection -> IO (a, a)
 recv2 conn = do
-    res <- replicateM 2 (recv' conn)
-    let [x,y] = map fst res
-        n = sum (map snd res)
-    {-traceM ("[recv2] recieved " ++ show n ++ " bytes")-}
+    [x,y] <- replicateM 2 (recv conn)
     return (x,y)
 
 send4 :: Serialize a => Connection -> (a, a, a, a) -> IO ()
-send4 conn (w,x,y,z) = do
-    n <- sum <$> mapM (send' conn) [w,x,y,z]
-    {-traceM ("[send4] sent " ++ show n ++ " bytes")-}
-    return ()
+send4 conn (w,x,y,z) = mapM_ (send conn) [w,x,y,z]
 
 recv4 :: Serialize a => Connection -> IO (a, a, a, a)
 recv4 conn = do
-    res <- replicateM 4 (recv' conn)
-    let [w,x,y,z] = map fst res
-        n = sum (map snd res)
-    {-traceM ("[recv4] recieved " ++ show n ++ " bytes")-}
+    [w,x,y,z] <- replicateM 4 (recv conn)
     return (w,x,y,z)
 
 connectTo :: HostName -> Port -> (Handle -> IO a) -> IO a
@@ -105,5 +88,10 @@ perform sock f = withSocketsDo $ do
     handle <- socketToHandle sock ReadWriteMode
     result <- f handle
     hClose handle
-    close sock
     return result
+
+printConnectionInfo :: Connection -> IO ()
+printConnectionInfo c = do
+    sent  <- readIORef (conn_bytes_sent c)
+    recvd <- readIORef (conn_bytes_received c)
+    printf "[garblerProto] %d bytes sent, %d bytes received.\n" sent recvd
