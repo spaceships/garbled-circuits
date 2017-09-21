@@ -1,5 +1,6 @@
 module Crypto.GarbledCircuits.Network
-  ( simpleConn
+  ( byteSize
+  , simpleConn
   , send
   , recv
   , send2
@@ -27,6 +28,9 @@ import           Text.Printf
 
 --------------------------------------------------------------------------------
 -- network
+
+byteSize :: Serialize a => a -> Int
+byteSize = BS.length . encode
 
 simpleConn :: Handle -> IO Connection
 simpleConn h = do

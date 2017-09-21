@@ -48,8 +48,8 @@ import qualified Data.Set as S
 import Data.Word
 
 data CircuitSt = CircuitSt { st_nextRef     :: Ref Circuit
-                           , st_input_gb   :: S.Set (Ref Circuit)
-                           , st_input_ev   :: S.Set (Ref Circuit)
+                           , st_input_gb    :: S.Set (Ref Circuit)
+                           , st_input_ev    :: S.Set (Ref Circuit)
                            , st_nextInputId :: InputId
                            , st_deref_env   :: Map (Ref Circuit) Circuit
                            , st_dedup_env   :: Map Circuit (Ref Circuit)

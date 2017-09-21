@@ -33,6 +33,7 @@ import           Data.Serialize (decode, encode, Serialize)
 import           Network.Socket hiding (send, recv)
 import           Network.BSD
 import           System.IO
+import           Text.Printf
 
 garblerProto :: Program Circuit -> [Bool] -> Connection -> IO [Bool]
 garblerProto prog inp conn = do
@@ -40,7 +41,7 @@ garblerProto prog inp conn = do
     traceM "[garblerProto] circuit garbled"
     let myWires    = inputWires Garbler   gg ctx inp
         theirPairs = map asTuple $ inputPairs Evaluator gg ctx
-    traceM "[garblerProto] sending circuit"
+    printf "[garblerProto] sending garbled circuit (size=%d)\n" (byteSize (halfGates gg))
     send conn (halfGates gg)
     traceM "[garblerProto] sending my input wires"
     send conn myWires
