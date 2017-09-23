@@ -27,7 +27,7 @@ import qualified Data.ByteString as BS
 -- diffie-hellman based dual mode oblivious transfer from https://eprint.iacr.org/2007/348
 -- WARNING: this is a work in progress.
 
-keySize = 2048
+keySize = 3072
 
 type SecretKey  = Integer
 type Plaintext  = Integer
