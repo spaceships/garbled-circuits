@@ -201,9 +201,8 @@ gtBit x y = not =<< leqBit x y
 
 -- |Compare two little-endian binary values.
 --
--- Note: I do not understand why we have to swap the arguments.
 gtBinary :: [Ref Circuit] -> [Ref Circuit] -> Builder (Ref Circuit)
-gtBinary xs ys = fst <$> gtHelper ys xs
+gtBinary xs ys = fst <$> gtHelper xs ys
   where
     gtHelper [x] [y] = do
         gt <- gtBit x y

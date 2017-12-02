@@ -17,7 +17,10 @@ module Crypto.GarbledCircuits.Util
   , writep
   , lookupC
   , lsb
+  , readGGInput
+  , readTTInput
   , sel
+  , sortedInput
   , orBytes
   , xorBytes
   , xorWords
@@ -40,6 +43,8 @@ import           Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import           Data.Tuple
 import           Data.Word
+import           Data.Ord (comparing)
+import           Data.List
 import           Numeric (showHex)
 import Prelude hiding (traverse)
 
@@ -104,7 +109,7 @@ mask :: Bool -> Wirelabel -> Wirelabel
 mask b wl = if b then wl else zeroWirelabel
 
 inputPairs :: Party -> Program GarbledGate -> Context -> [WirelabelPair]
-inputPairs p prog ctx = map (ctx_pairs ctx !!!) (S.toList (prog_inputs p prog))
+inputPairs p prog ctx = map (ctx_pairs ctx !!!) (sortedInput readGGInput p prog)
 
 inputWires :: Party -> Program GarbledGate -> Context -> [Bool] -> [Wirelabel]
 inputWires party prog ctx inp = zipWith sel inp (inputPairs party prog ctx)
@@ -155,6 +160,29 @@ writep ref circ = modify (\p -> p { prog_env = M.insert ref circ (prog_env p) })
 
 lookupC :: Ref c -> Program c -> c
 lookupC ref prog = fromMaybe (error "[lookupC] no c") (M.lookup ref (prog_env prog))
+
+readTTInput :: TruthTable -> InputId
+readTTInput (TTInp i p) = i
+readTTInput _ = undefined
+
+readGGInput :: GarbledGate -> InputId
+readGGInput (GarbledInput i p) = i
+readGGInput _ = undefined
+
+-- Program c -> [Ref c] -> [(Ref c, c)] -> Sorted [(Ref c, c)] -> [Ref c]
+sortedInput :: (c -> InputId) -> Party -> Program c -> [Ref c]
+sortedInput readInputId party prog = fst <$> sortBy byInputId inputs
+  where
+    -- [Ref c]
+    inputRefs = S.toList $ prog_inputs party prog
+    -- Program c -> Ref c -> (Ref c, c)
+    findC prog ref = (ref, lookupC ref prog)
+    -- [(Ref c, c)]
+    inputs = findC prog <$> inputRefs
+    -- (Ref c, c) -> Int
+    inputIdField = getInputId . readInputId . snd
+    -- ((Ref c, c) -> (Ref c, c) -> Ordering)
+    byInputId = comparing inputIdField
 
 --------------------------------------------------------------------------------
 -- polymorphic evaluation
