@@ -13,5 +13,5 @@ main :: IO ()
 main = do
     (port:args) <- getArgs
     let input = concat [ word2Bits (read w :: Word8) | w <- args ]
-    result <- listenAt (read port) (garblerProto classifier input <=< simpleConn)
+    result <- listenAt (read port) (garblerProto gtBinary input <=< simpleConn)
     print (bits2Word result :: Word8)
