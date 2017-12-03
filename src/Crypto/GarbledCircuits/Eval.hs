@@ -30,8 +30,8 @@ runEval k m ev = snd $ execState (runReaderT ev k) (0,m)
 eval :: Program GarbledGate -> AESKey128 -> [Wirelabel] -> [Wirelabel] -> [Wirelabel]
 eval prog key inpGb inpEv = trace (showGG prog inpGb inpEv) result
   where
-    initialResults = M.fromList (zip (S.toList (prog_input_gb prog)) inpGb) `M.union`
-                     M.fromList (zip (S.toList (prog_input_ev prog)) inpEv)
+    initialResults = M.fromList (zip (sortedInput readGGInput Garbler prog) inpGb) `M.union`
+                     M.fromList (zip (sortedInput readGGInput Evaluator prog) inpEv)
     resultMap = runEval key initialResults (eval' prog)
     result    = map (resultMap !!!) (prog_output prog)
 
